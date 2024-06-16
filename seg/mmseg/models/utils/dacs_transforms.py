@@ -8,6 +8,20 @@ import torch
 import torch.nn as nn
 
 
+def cls_dist_mix(mask, data=None, target=None):
+    if mask is None:
+        return data, target
+    if not (data is None):
+        stackedMask0, _ = torch.broadcast_tensors(mask[0], data[0])
+        data = (stackedMask0 * data[0] +
+                (1 - stackedMask0) * data[1]).unsqueeze(0)
+    if not (target is None):
+        stackedMask0, _ = torch.broadcast_tensors(mask[0], target[0])
+        target = (stackedMask0 * target[0] +
+                  (1 - stackedMask0) * target[1]).unsqueeze(0)
+    return data, target
+
+
 def strong_transform(param, data=None, target=None, cls_dist=None):
     assert ((data is not None) or (target is not None))
     # ToDo: cut img and gt, do sliding window, create new source img and label, then call one_mix func
