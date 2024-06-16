@@ -2,21 +2,11 @@
 
 ## Environment Setup
 
-First, please install cuda version 11.0.3 available at [https://developer.nvidia.com/cuda-11-0-3-download-archive](https://developer.nvidia.com/cuda-11-0-3-download-archive). It is required to build mmcv-full later.
-
-For this project, we used python 3.8.5. We recommend setting up a new virtual
-environment:
-
 ```shell
-python -m venv ~/venv/mic-seg
-source ~/venv/mic-seg/bin/activate
-```
-
-In that environment, the requirements can be installed with:
-
-```shell
+conda create -n mic python=3.8.5 pip=22.3.1
+conda activate mic
 pip install -r requirements.txt -f https://download.pytorch.org/whl/torch_stable.html
-pip install mmcv-full==1.3.7  # requires the other packages to be installed first
+pip install mmcv-full==1.3.7 -f https://download.openmmlab.com/mmcv/dist/cu110/torch1.7/index.html
 ```
 
 Please, download the MiT-B5 ImageNet weights provided by [SegFormer](https://github.com/NVlabs/SegFormer?tab=readme-ov-file#training)

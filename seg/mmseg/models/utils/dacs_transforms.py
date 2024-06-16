@@ -8,8 +8,9 @@ import torch
 import torch.nn as nn
 
 
-def strong_transform(param, data=None, target=None):
+def strong_transform(param, data=None, target=None, cls_dist=None):
     assert ((data is not None) or (target is not None))
+    # ToDo: cut img and gt, do sliding window, create new source img and label, then call one_mix func
     data, target = one_mix(mask=param['mix'], data=data, target=target)
     data, target = color_jitter(
         color_jitter=param['color_jitter'],

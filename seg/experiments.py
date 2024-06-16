@@ -277,6 +277,9 @@ def generate_experiment_cfgs(id):
                 mask_ratio=mask_ratio,
                 mask_block_size=mask_block_size,
                 _delete_=True)
+            
+        # Setup cdmix
+        cfg['data']['train']['cdmix'] = cdmix
 
         # Setup optimizer and schedule
         if 'dacs' in uda or 'minent' in uda or 'advseg' in uda:
@@ -370,7 +373,8 @@ def generate_experiment_cfgs(id):
     iters = 40000
     opt, lr, schedule, pmult = 'adamw', 0.00006, 'poly10warm', True
     crop = '512x512'
-    gpu_model = 'NVIDIAGeForceRTX2080Ti'
+    cdmix = True
+    gpu_model = 'NVIDIARTX3090'
     datasets = [
         ('gta', 'cityscapes'),
     ]
@@ -399,13 +403,13 @@ def generate_experiment_cfgs(id):
         inference = 'slide'
         mask_block_size, mask_ratio = 64, 0.7
         for source,          target,         mask_mode in [
-            ('gtaHR',        'cityscapesHR', 'separatetrgaug'),
-            ('synthiaHR',    'cityscapesHR', 'separatetrgaug'),
+            # ('gtaHR',        'cityscapesHR', 'separatetrgaug'),
+            # ('synthiaHR',    'cityscapesHR', 'separatetrgaug'),
             ('cityscapesHR', 'acdcHR',       'separate'),
-            ('cityscapesHR', 'darkzurichHR', 'separate'),
+            # ('cityscapesHR', 'darkzurichHR', 'separate'),
         ]:
             for seed in seeds:
-                gpu_model = 'NVIDIATITANRTX'
+                gpu_model = 'NVIDIARTX3090'
                 # plcrop is only necessary for Cityscapes as target domains
                 # ACDC and DarkZurich have no rectification artifacts.
                 plcrop = 'v2' if 'cityscapes' in target else False

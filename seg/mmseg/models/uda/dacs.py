@@ -292,7 +292,8 @@ class DACS(UDADecorator):
                       target_img,
                       target_img_metas,
                       rare_class=None,
-                      valid_pseudo_mask=None):
+                      valid_pseudo_mask=None,
+                      cls_dist=None,):
         """Forward function for training.
 
         Args:
@@ -403,7 +404,9 @@ class DACS(UDADecorator):
                     strong_parameters,
                     data=torch.stack((img[i], target_img[i])),
                     target=torch.stack(
-                        (gt_semantic_seg[i][0], pseudo_label[i])))
+                        (gt_semantic_seg[i][0], pseudo_label[i])),
+                    cls_dist=cls_dist,
+                )
                 _, mixed_seg_weight[i] = strong_transform(
                     strong_parameters,
                     target=torch.stack((gt_pixel_weight[i], pseudo_weight[i])))

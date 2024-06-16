@@ -6,6 +6,7 @@
 # ---------------------------------------------------------------
 
 import json
+import pickle
 import os.path as osp
 
 import mmcv
@@ -68,6 +69,10 @@ class UDADataset(object):
         assert target.ignore_index == source.ignore_index
         assert target.CLASSES == source.CLASSES
         assert target.PALETTE == source.PALETTE
+
+        if cfg.cdmix:
+            with open(osp.join(source.data_root, 'cls_prob_distribution.pkl'), 'rb') as file:
+                self.cls_dist = pickle.load(file)
 
         self.sync_crop_size = cfg.get('sync_crop_size')
         rcs_cfg = cfg.get('rare_class_sampling')
@@ -160,7 +165,7 @@ class UDADataset(object):
 
     def __getitem__(self, idx):
         if self.rcs_enabled:
-            return self.get_rare_class_sample()
+            out = self.get_rare_class_sample()
         else:
             s1 = self.source[idx // len(self.target)]
             s2 = self.target[idx % len(self.target)]
@@ -171,7 +176,11 @@ class UDADataset(object):
             }
             if 'valid_pseudo_mask' in s2:
                 out['valid_pseudo_mask'] = s2['valid_pseudo_mask']
-            return out
+
+        if hasattr(self, 'cls_dist'):
+            out['cls_dist'] = self.cls_dist
+
+        return out
 
     def __len__(self):
         return len(self.source) * len(self.target)
