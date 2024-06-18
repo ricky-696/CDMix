@@ -10,7 +10,7 @@ import torch
 from matplotlib import pyplot as plt
 from PIL import Image
 
-from mmseg.models.utils.dacs_transforms import denorm
+# from mmseg.models.utils.dacs_transforms import denorm
 
 Cityscapes_palette = [
     128, 64, 128, 244, 35, 232, 70, 70, 70, 102, 102, 156, 190, 153, 153, 153,

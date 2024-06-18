@@ -30,11 +30,8 @@ def cnt_prob_distribution(args, cls_dists):
     for key, value in cls_dists.items():
         if len(value) > 0:
             cls_dist = np.array(value)
-            cls_dist_bins = np.digitize(cls_dist, bin_edges, right=True) # 0-indexed, 0: [0, 0.1), 1: [0.1, 0.2), ..., 20: [1.9, 2.0]
+            cls_dist_bins = np.digitize(cls_dist, bin_edges, right=False) - 1 # 0-indexed, 0: [0, 0.1), 1: [0.1, 0.2), ..., 20: [1.9, 2.0]
             cls_dist_counts = np.bincount(cls_dist_bins, minlength=len(bin_edges) - 1)
-
-            if len(cls_dist) <= 0:
-                print('here')
 
             cls_dist_distribution = cls_dist_counts / len(cls_dist)
 
@@ -67,8 +64,6 @@ def update_cls_dists(args, cls_dists, gt):
                 
                 cls_dists[i, j].append(loss.item())
                 cls_dists[j, i].append(loss.item())
-        
-        return
 
 
 def count_classes_distance(args, dataset):

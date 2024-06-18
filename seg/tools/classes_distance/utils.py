@@ -1,5 +1,22 @@
 import torch
+import numpy as np
+
+from PIL import Image
 from typing import Tuple
+
+
+def visualized_mask(mask_tensor, file_name='mask.jpg'):
+    mask_np = mask_tensor.numpy()
+    mask_np = np.uint8(mask_np / np.max(mask_np) * 255)
+    mask_img = Image.fromarray(mask_np, 'RGB')
+    mask_img.save(file_name)
+
+
+def visualized_one_dim(tensor_img, file_name='img.jpg'):
+    np_img = np.array(tensor_img)
+    np_img = np.uint8(np_img / np.max(np_img) * 255)
+    img = Image.fromarray(np_img)
+    img.save(file_name)
 
 
 def mask_to_bbox(mask: torch.tensor):

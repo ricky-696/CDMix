@@ -405,7 +405,7 @@ class DACS(UDADecorator):
                     data=torch.stack((img[i], target_img[i])),
                     target=torch.stack(
                         (gt_semantic_seg[i][0], pseudo_label[i])),
-                    cls_dist=cls_dist,
+                    # cls_dist=cls_dist,
                 )
                 _, mixed_seg_weight[i] = strong_transform(
                     strong_parameters,

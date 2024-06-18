@@ -69,9 +69,11 @@ class UDADataset(object):
         assert target.ignore_index == source.ignore_index
         assert target.CLASSES == source.CLASSES
         assert target.PALETTE == source.PALETTE
-
+        
+        self.debug = cfg.get('debug', False)
+        
         if cfg.cdmix:
-            with open(osp.join(source.data_root, 'cls_prob_distribution.pkl'), 'rb') as file:
+            with open(osp.join(source.data_root, 'cls_prob_distribution_diou.pkl'), 'rb') as file:
                 self.cls_dist = pickle.load(file)
 
         self.sync_crop_size = cfg.get('sync_crop_size')
@@ -159,8 +161,13 @@ class UDADataset(object):
             **s1, 'target_img_metas': s2['img_metas'],
             'target_img': s2['img']
         }
+        
+        if self.debug:
+            out['target_gt'] = s2['gt_semantic_seg']
+            
         if 'valid_pseudo_mask' in s2:
             out['valid_pseudo_mask'] = s2['valid_pseudo_mask']
+            
         return out
 
     def __getitem__(self, idx):
@@ -174,6 +181,10 @@ class UDADataset(object):
                 **s1, 'target_img_metas': s2['img_metas'],
                 'target_img': s2['img']
             }
+            
+            if self.debug:
+                out['target_gt'] = s2['gt_semantic_seg']
+            
             if 'valid_pseudo_mask' in s2:
                 out['valid_pseudo_mask'] = s2['valid_pseudo_mask']
 
