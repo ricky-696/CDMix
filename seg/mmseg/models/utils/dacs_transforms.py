@@ -53,6 +53,17 @@ def vis_mixing_cls(source_gt, mixing_gt, target_gt):
 
 
 def seg_sliding_windows(source_cls, cls_mask, gt_mask, cls_dist_mat, step_size=1) -> torch.tensor:
+    """
+        Args:
+            source_cls: int, source class
+            cls_mask: tensor, shape (H, W), binary mask of source class
+            gt_mask: tensor, shape (H, W), groundtruth mask
+            cls_dist_mat: dict, key is tuple of (source_cls, cls), value is tuple of (min_val, max_val)
+
+        return:
+            window: tensor, shape (4,), x1, y1, x2, y2
+    """
+
     mask_bbox = mask_to_bbox(cls_mask)[0] # x1, y1, x2, y2
 
     # Compute the window size
@@ -65,21 +76,28 @@ def seg_sliding_windows(source_cls, cls_mask, gt_mask, cls_dist_mat, step_size=1
     # Flatten coordinates
     flat_x = xx.flatten()
     flat_y = yy.flatten()
-    # x1, y1, x2, y2
+
+    # shape: [num_windows, 4]
     all_windows = torch.stack((flat_x, flat_y, flat_x + window_size[0], flat_y + window_size[1])).t()
     
-    # get groundtruth cls
+    # get groundtruth cls, shape: [num_cls]
     gt_cls = torch.unique(gt_mask)
     gt_cls = gt_cls[gt_cls != 255].numpy() # remove background cls
 
     cls_diou_losses = {}
     for cls in gt_cls:
         gt_bbox = mask_to_bbox(gt_mask==cls).expand(all_windows.shape[0], -1)
-    
+
+        # diou_losses: the diou loss for all sliding windows, shape: [num_windows]
         diou_losses, ious = diou_loss(gt_bbox, all_windows)
         cls_diou_losses[cls] = diou_losses
         
     # Using Top-k to choose relative class
+
+    # gt_cls_dist = [
+    #     (gt_cls, distance between source_cls & cls)
+    # ]
+
     top_k = 1
     gt_cls_dist = [(cls, cls_dist_mat[(source_cls, cls)]) for cls in gt_cls if source_cls != cls]
 
