@@ -415,16 +415,15 @@ class DACS(UDADecorator):
                 if ignore_cls is not None:
                     strong_parameters['ignore_cls'] = ignore_cls[i]
                     
-                mixed_img[i], mixed_lbl[i] = strong_transform(
+                mixed_img[i], mixed_lbl[i], mixed_seg_weight[i] = strong_transform(
                     strong_parameters,
                     data=torch.stack((img[i], target_img[i])),
                     target=torch.stack(
                         (gt_semantic_seg[i][0], pseudo_label[i])),
+                    weight=torch.stack((gt_pixel_weight[i], pseudo_weight[i])),
                     cls_dist=cls_dist_cpu,
                 )
-                _, mixed_seg_weight[i] = strong_transform(
-                    strong_parameters,
-                    target=torch.stack((gt_pixel_weight[i], pseudo_weight[i])))
+
             del gt_pixel_weight
             mixed_img = torch.cat(mixed_img)
             mixed_lbl = torch.cat(mixed_lbl)

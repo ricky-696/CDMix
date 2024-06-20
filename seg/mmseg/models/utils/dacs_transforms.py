@@ -7,7 +7,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-import os
 import sys
 sys.path.append('.')
 
@@ -41,8 +40,8 @@ def extract_window_v2(all_windows, cls_diou_losses, topk_cls_dist, topk_cls_dist
         return None
 
 
-def vis_mixing_cls(source_gt, mixing_gt, ori_target_gt, mixed_target_gt):
-    rows, cols = 1, 4
+def vis_mixing_cls(source_img, mixing_img, ori_target_img, mixed_target_img, source_gt, mixing_gt, ori_target_gt, mixed_target_gt):
+    rows, cols = 2, 4
     fig, axs = plt.subplots(
         rows,
         cols,
@@ -57,22 +56,39 @@ def vis_mixing_cls(source_gt, mixing_gt, ori_target_gt, mixed_target_gt):
         },
     )
     subplotimg(
-        axs[0],
+        axs[0][0],
+        source_img,
+        'Source img',)
+    subplotimg(
+        axs[0][1],
+        mixing_img,
+        'mixing_img',)
+    subplotimg(
+        axs[0][2],
+        ori_target_img,
+        'ori_target_img',)
+    subplotimg(
+        axs[0][3],
+        mixed_target_img,
+        'mixed_target_img',)
+    
+    subplotimg(
+        axs[1][0],
         source_gt,
         'Source Seg GT',
         cmap='cityscapes')
     subplotimg(
-        axs[1],
+        axs[1][1],
         mixing_gt,
         'mixing_cls',
         cmap='cityscapes')
     subplotimg(
-        axs[2],
+        axs[1][2],
         ori_target_gt,
         'ori_target_gt',
         cmap='cityscapes')
     subplotimg(
-        axs[3],
+        axs[1][3],
         mixed_target_gt,
         'mixed_target_gt',
         cmap='cityscapes')
@@ -147,12 +163,13 @@ def seg_sliding_windows(source_cls, cls_mask, gt_mask, cls_dist_mat, cls_relatio
         return None, None
 
 
-def cls_dist_mix(mask, ignore_cls, data=None, target=None, cls_dist=None):
+def cls_dist_mix(mask, ignore_cls, data=None, target=None, weight=None, cls_dist=None):
     if mask is None:
-        return data, target
+        return data, target, False
     
     source_img, target_img = data
     source_gt, target_gt = target
+    source_weight, target_weight = weight
     C, H, W = source_img.shape
 
     gt_mask = mask.view(source_gt.shape)
@@ -169,7 +186,10 @@ def cls_dist_mix(mask, ignore_cls, data=None, target=None, cls_dist=None):
         if keys[0] == keys[1]:
             cls_dist_mat[keys] = torch.tensor(0)
         else:
-            distribution = Categorical(probs=torch.tensor(value))
+            if type(value) == np.ndarray:
+                value = torch.from_numpy(value)
+
+            distribution = Categorical(probs=value)
             bin_idx = min(distribution.sample((3, )))
 
             # 0-indexed, 0: [0, 0.1), 1: [0.1, 0.2), ..., 20: [1.9, 2.0]
@@ -193,69 +213,74 @@ def cls_dist_mix(mask, ignore_cls, data=None, target=None, cls_dist=None):
                 ori_x1, ori_y1, ori_x2, ori_y2 = ori_axis
                 mix_x1, mix_y1, mix_x2, mix_y2 = mix_axis
 
+                # ori_target_img = target_img.clone()
+
                 masked_img = source_img * cls_mask
                 mix_img = masked_img[:, ori_y1:ori_y2, ori_x1:ori_x2]
                 target_img[:, mix_y1:mix_y2, mix_x1:mix_x2].copy_(
                     torch.where(mix_img != 0, mix_img, target_img[:, mix_y1:mix_y2, mix_x1:mix_x2])
                 )
 
-                ori_target_gt = target_gt.clone()
+                # ori_target_gt = target_gt.clone()
                 
                 masked_gt = source_gt * cls_mask
                 mix_gt = masked_gt[ori_y1:ori_y2, ori_x1:ori_x2]
                 target_gt[mix_y1:mix_y2, mix_x1:mix_x2].copy_(
                     torch.where(mix_gt != 0, mix_gt, target_gt[mix_y1:mix_y2, mix_x1:mix_x2])
                 )
+
+                masked_weight = source_weight * cls_mask
+                mix_weight = masked_weight[ori_y1:ori_y2, ori_x1:ori_x2]
+                target_weight[mix_y1:mix_y2, mix_x1:mix_x2].copy_(
+                    torch.where(mix_weight != 0, mix_weight, target_weight[mix_y1:mix_y2, mix_x1:mix_x2])
+                )
                 
-                vis_mix_cls = masked_gt.clone()
-                vis_mix_cls[vis_mix_cls == 0] = 255
-                vis_mixing_cls(source_gt, vis_mix_cls, ori_target_gt, target_gt)
-                
-                del masked_img, mix_img, masked_gt, mix_gt, ori_target_gt, vis_mix_cls
+                # vis_mix_cls = masked_gt.clone()
+                # vis_mix_cls[vis_mix_cls == 0] = 255
+                # vis_mixing_cls(source_img, mix_img, ori_target_img, target_img, source_gt, vis_mix_cls, ori_target_gt, target_gt)
         
-    del source_img, target_img, source_gt, target_gt, gt_mask, img_mask, cls_dist_mat
-    torch.cuda.empty_cache()
-        
-    # 一樣的資料如果使用one_mix這個func回傳data, target進去模型forward就不會OOM，我猜是因為one_mix都是inplace的操作，
-    # 所以在forward時並不會新增新的向量，目前猜測是模型forward時會把masked_img, mix_img丟進去GPU，所以OOM
-    return data, target, mixed
+    return target_img.unsqueeze(0), target_gt.unsqueeze(0).unsqueeze(0), target_weight.unsqueeze(0).unsqueeze(0), mixed
 
 
-def strong_transform(param, data=None, target=None, cls_dist=None):
+def strong_transform(param, data=None, target=None, weight=None, cls_dist=None):
     """
         Args:
             param: dict, parameters for strong transform
             data: tensor, images, shape (2, C, H, W), where 2 is source and target
             target: tensor, groundtruths, shape (2, H, W), where 2 is source and target
+            weight: tensor, weights for pseudo labels, shape (2, H, W), where 2 is source and target
 
         Returns:
-            data: tensor, images, shape (2, C, H, W), where 2 is source and target
-            target: tensor, groundtruths, shape (2, H, W), where 2 is source and target
+            mixed_data: tensor, images, shape (2, C, H, W), where 2 is source and target
+            mixed_target: tensor, groundtruths, shape (2, H, W), where 2 is source and target
+            mixed_weight: tensor, weights for pseudo labels, shape (2, H, W), where 2 is source and target
     """
     assert ((data is not None) or (target is not None))
 
     if cls_dist is not None:
-        data, target, mixed = cls_dist_mix(
+        mixed_data, mixed_target, mixed_weight, mixed = cls_dist_mix(
             mask=param['mix'], 
             ignore_cls=param['ignore_cls'], 
-            data=data, target=target, cls_dist=cls_dist,
+            data=data, target=target, weight=weight, cls_dist=cls_dist,
         )
         if not mixed:
-            data, target = one_mix(mask=param['mix'], data=data, target=target)
+            mixed_data, mixed_target = one_mix(mask=param['mix'], data=data, target=target)
+            _, mixed_weight = one_mix(mask=param['mix'], data=None, target=weight)
     else:
-        data, target = one_mix(mask=param['mix'], data=data, target=target)
+        mixed_data, mixed_target = one_mix(mask=param['mix'], data=data, target=target)
+        _, mixed_weight = one_mix(mask=param['mix'], data=None, target=weight)
 
-    data, target = color_jitter(
+    mixed_data, mixed_target = color_jitter(
         color_jitter=param['color_jitter'],
         s=param['color_jitter_s'],
         p=param['color_jitter_p'],
         mean=param['mean'],
         std=param['std'],
-        data=data,
-        target=target)
-    data, target = gaussian_blur(blur=param['blur'], data=data, target=target)
+        data=mixed_data,
+        target=mixed_target)
+    mixed_data, mixed_target = gaussian_blur(blur=param['blur'], data=mixed_data, target=mixed_target)
     
-    return data, target
+    return mixed_data, mixed_target, mixed_weight
 
 
 def get_mean_std(img_metas, dev):
