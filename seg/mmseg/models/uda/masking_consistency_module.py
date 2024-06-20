@@ -126,7 +126,7 @@ class MaskingConsistencyModule(Module):
                 'mean': means[0].unsqueeze(0),
                 'std': stds[0].unsqueeze(0)
             }
-            masked_img, _ = strong_transform(
+            masked_img, _, _ = strong_transform(
                 strong_parameters, data=masked_img.clone())
 
         # Apply masking to image
