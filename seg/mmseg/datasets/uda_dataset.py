@@ -75,6 +75,9 @@ class UDADataset(object):
         if cfg.cdmix:
             with open(osp.join(source.data_root, 'cls_prob_distribution_diou.pkl'), 'rb') as file:
                 self.cls_dist = pickle.load(file)
+            
+            self.get_cls_relation(self.cls_dist)
+            self.ignore_cls = torch.tensor([0, 1, 10]) # ignore road, sidewalk, sky
 
         self.sync_crop_size = cfg.get('sync_crop_size')
         rcs_cfg = cfg.get('rare_class_sampling')
@@ -111,6 +114,36 @@ class UDADataset(object):
                 if isinstance(self.source, CityscapesDataset):
                     file = file.split('/')[-1]
                 self.file_to_idx[file] = i
+
+    def get_cls_relation(self, cls_dist):
+        """
+            get class relation for each class, lower distance means more related
+
+            return: sorted class relation 
+            cls_dist['relation'] = {
+                cls_num: [(cls_num, distance), (2, 0.2), ...],
+                ...
+            }
+        """
+        cls_realtion = {}
+        prob = cls_dist['prob']
+        num_cls = len(self.CLASSES)
+
+        for cls_a in range(num_cls):
+            cls_realtion[cls_a] = []
+            for cls_b in range(num_cls):
+                if cls_a != cls_b:
+                    p = prob[cls_a, cls_b]
+                    indices = np.arange(len(p))
+
+                    cls_realtion[cls_a].append(
+                        (cls_b, np.sum(indices * p))
+                    )
+            
+            cls_realtion[cls_a] = sorted(cls_realtion[cls_a], key=lambda x: x[1])
+            cls_realtion[cls_a] = torch.tensor(cls_realtion[cls_a])
+        
+        cls_dist['relation'] = cls_realtion
 
     def synchronized_crop(self, s1, s2):
         if self.sync_crop_size is None:
@@ -190,6 +223,7 @@ class UDADataset(object):
 
         if hasattr(self, 'cls_dist'):
             out['cls_dist'] = self.cls_dist
+            out['ignore_cls'] = self.ignore_cls
 
         return out
 

@@ -17,8 +17,32 @@ from tools.classes_distance.utils import diou_loss, mask_to_bbox
 from mmseg.models.utils.visualization import subplotimg
 
 
-def vis_mixing_cls(source_gt, mixing_gt, target_gt):
-    rows, cols = 1, 3
+def extract_window_v2(all_windows, cls_diou_losses, topk_cls_dist, topk_cls_dist_indices):
+    """
+    N: n_windows
+    C: n_classes
+    K: top_k
+
+    Shapes:
+    * all_windows: [N, 4]
+    * cls_diou_losses: [C, N]
+    * topk_cls_dist: [K, 2]
+    * topk_cls_dist_indices: [K,]
+    """
+    cls_diou_losses = cls_diou_losses[topk_cls_dist_indices].T  # [N, K], where the axis of K is ordered.
+    min_cls_diou_losses, max_cls_diou_losses = topk_cls_dist.T  # [K,], [K,]
+    k_conditions = (min_cls_diou_losses <= cls_diou_losses) & (cls_diou_losses <= max_cls_diou_losses)  # [N, K]
+    matched_k = torch.all(k_conditions, dim=1)  # [N,]
+    matched_windows = all_windows[matched_k]
+
+    if len(matched_windows) > 0:
+        return matched_windows[0]
+    else:
+        return None
+
+
+def vis_mixing_cls(source_gt, mixing_gt, ori_target_gt, mixed_target_gt):
+    rows, cols = 1, 4
     fig, axs = plt.subplots(
         rows,
         cols,
@@ -44,15 +68,20 @@ def vis_mixing_cls(source_gt, mixing_gt, target_gt):
         cmap='cityscapes')
     subplotimg(
         axs[2],
-        target_gt,
-        'target_gt',
+        ori_target_gt,
+        'ori_target_gt',
+        cmap='cityscapes')
+    subplotimg(
+        axs[3],
+        mixed_target_gt,
+        'mixed_target_gt',
         cmap='cityscapes')
     
     plt.savefig('source_gt.jpg')
     plt.close()
 
 
-def seg_sliding_windows(source_cls, cls_mask, gt_mask, cls_dist_mat, step_size=1) -> torch.tensor:
+def seg_sliding_windows(source_cls, cls_mask, gt_mask, cls_dist_mat, cls_relation, step_size=1) -> torch.tensor:
     """
         Args:
             source_cls: int, source class
@@ -82,7 +111,7 @@ def seg_sliding_windows(source_cls, cls_mask, gt_mask, cls_dist_mat, step_size=1
     
     # get groundtruth cls, shape: [num_cls]
     gt_cls = torch.unique(gt_mask)
-    gt_cls = gt_cls[gt_cls != 255].numpy() # remove background cls
+    gt_cls = gt_cls[gt_cls != 255].cpu().numpy() # remove background cls
 
     cls_diou_losses = {}
     for cls in gt_cls:
@@ -92,34 +121,30 @@ def seg_sliding_windows(source_cls, cls_mask, gt_mask, cls_dist_mat, step_size=1
         diou_losses, ious = diou_loss(gt_bbox, all_windows)
         cls_diou_losses[cls] = diou_losses
         
-    # Using Top-k to choose relative class
-
-    # gt_cls_dist = [
-    #     (gt_cls, distance between source_cls & cls)
-    # ]
-
-    top_k = 1
-    gt_cls_dist = [(cls, cls_dist_mat[(source_cls, cls)]) for cls in gt_cls if source_cls != cls]
-
-    # Sort by the minimum value in the tuple and take the top k
-    topk_cls_dist = sorted(gt_cls_dist, key=lambda x: x[1][0])[:top_k]
+    # Choose top k cls relation
+    top_k = 2
+    topk_cls_relation = [cls[0] for cls in cls_relation[source_cls] if cls[0] in cls_diou_losses][:top_k]
+    topk_cls_dist = [(cls, cls_dist_mat[(source_cls, cls)]) for cls in topk_cls_relation]
 
     # check if exist one windows axis all in range of topk_cls_dist, return axis
-    # ToDo: optimize this part
-    for window in all_windows:
-        diou_checks = True
-        for cls, (min_val, max_val) in topk_cls_dist:
-            diou_losses = cls_diou_losses[cls]
-            window_diou_loss = diou_losses[(all_windows == window).all(dim=1)]
+    diou_checks = torch.ones(all_windows.shape[0], dtype=torch.bool)
+    for cls, (min_val, max_val) in topk_cls_dist:
+        diou_losses = cls_diou_losses[cls]
+        diou_checks &= (diou_losses >= min_val) & (diou_losses <= max_val)
 
-            if not ((window_diou_loss >= min_val) & (window_diou_loss <= max_val)):
-                diou_checks = False
-                break 
+    valid_windows = all_windows[diou_checks]
 
-        if diou_checks: # all cls in range
-            return window
+    if valid_windows.shape[0] > 0:
+        # print(
+        #     'source_cls: ', cls_name[source_cls], 
+        #     'topk_cls_dist-1: ', cls_name[topk_cls_dist[0][0]], topk_cls_dist[0][1],
+        #     'topk_cls_dist-2: ', cls_name[topk_cls_dist[1][0]], topk_cls_dist[1][1],
+        # )
         
-    return None
+        sample_idx = torch.randint(0, valid_windows.shape[0], (1,)).item()
+        return valid_windows[sample_idx], mask_bbox
+    else:
+        return None, None
 
 
 def cls_dist_mix(mask, ignore_cls, data=None, target=None, cls_dist=None):
@@ -133,12 +158,10 @@ def cls_dist_mix(mask, ignore_cls, data=None, target=None, cls_dist=None):
     gt_mask = mask.view(source_gt.shape)
     img_mask = gt_mask.unsqueeze(0).expand(C, -1, -1)
 
-    # ToDo: ignore some big class
+    # ignore some big class
     mixing_gt = source_gt * gt_mask
     mask = (mixing_gt[..., None] == ignore_cls).any(-1)
     mixing_gt[mask] = 255
-
-    vis_mixing_cls(source_gt, mixing_gt, target_gt)
 
     # get cls prob
     cls_dist_mat = {}
@@ -147,27 +170,55 @@ def cls_dist_mix(mask, ignore_cls, data=None, target=None, cls_dist=None):
             cls_dist_mat[keys] = torch.tensor(0)
         else:
             distribution = Categorical(probs=torch.tensor(value))
-            bin_idx = distribution.sample()
+            bin_idx = min(distribution.sample((3, )))
 
             # 0-indexed, 0: [0, 0.1), 1: [0.1, 0.2), ..., 20: [1.9, 2.0]
             cls_dist_mat[keys] = (cls_dist['bin_edges'][bin_idx], cls_dist['bin_edges'][bin_idx + 1])
 
     # for every cls, chossen the best mixing axis
+    mixed = False
     for cls in torch.unique(mixing_gt):
-        mix_axis = seg_sliding_windows(
-            source_cls=cls.item(), 
-            cls_mask=mixing_gt==cls,
-            gt_mask=target_gt,
-            cls_dist_mat=cls_dist_mat,
-        )
+        if cls != 255:
+            cls_mask = mixing_gt==cls
+            mix_axis, ori_axis = seg_sliding_windows(
+                source_cls=cls.item(), 
+                cls_mask=cls_mask,
+                gt_mask=target_gt,
+                cls_dist_mat=cls_dist_mat,
+                cls_relation=cls_dist['relation'],
+            )
 
-        # ToDo: mix source_img and target_img
-        if mix_axis is not None:
-            source_img[:, mix_axis[1]:mix_axis[3], mix_axis[0]:mix_axis[2]] = target_img[:, mix_axis[1]:mix_axis[3], mix_axis[0]:mix_axis[2]]
-            source_gt[mix_axis[1]:mix_axis[3], mix_axis[0]:mix_axis[2]] = target_gt[mix_axis[1]:mix_axis[3], mix_axis[0]:mix_axis[2]]
+            if mix_axis is not None:
+                mixed = True
+                ori_x1, ori_y1, ori_x2, ori_y2 = ori_axis
+                mix_x1, mix_y1, mix_x2, mix_y2 = mix_axis
 
+                masked_img = source_img * cls_mask
+                mix_img = masked_img[:, ori_y1:ori_y2, ori_x1:ori_x2]
+                target_img[:, mix_y1:mix_y2, mix_x1:mix_x2].copy_(
+                    torch.where(mix_img != 0, mix_img, target_img[:, mix_y1:mix_y2, mix_x1:mix_x2])
+                )
+
+                ori_target_gt = target_gt.clone()
+                
+                masked_gt = source_gt * cls_mask
+                mix_gt = masked_gt[ori_y1:ori_y2, ori_x1:ori_x2]
+                target_gt[mix_y1:mix_y2, mix_x1:mix_x2].copy_(
+                    torch.where(mix_gt != 0, mix_gt, target_gt[mix_y1:mix_y2, mix_x1:mix_x2])
+                )
+                
+                vis_mix_cls = masked_gt.clone()
+                vis_mix_cls[vis_mix_cls == 0] = 255
+                vis_mixing_cls(source_gt, vis_mix_cls, ori_target_gt, target_gt)
+                
+                del masked_img, mix_img, masked_gt, mix_gt, ori_target_gt, vis_mix_cls
         
-    return data, target
+    del source_img, target_img, source_gt, target_gt, gt_mask, img_mask, cls_dist_mat
+    torch.cuda.empty_cache()
+        
+    # 一樣的資料如果使用one_mix這個func回傳data, target進去模型forward就不會OOM，我猜是因為one_mix都是inplace的操作，
+    # 所以在forward時並不會新增新的向量，目前猜測是模型forward時會把masked_img, mix_img丟進去GPU，所以OOM
+    return data, target, mixed
 
 
 def strong_transform(param, data=None, target=None, cls_dist=None):
@@ -178,20 +229,19 @@ def strong_transform(param, data=None, target=None, cls_dist=None):
             target: tensor, groundtruths, shape (2, H, W), where 2 is source and target
 
         Returns:
+            data: tensor, images, shape (2, C, H, W), where 2 is source and target
+            target: tensor, groundtruths, shape (2, H, W), where 2 is source and target
     """
     assert ((data is not None) or (target is not None))
-    
-    # ToDo: cut img and gt, do sliding window, create new source img and label, then call one_mix func
-
-    # source_gt, target_gt = target
-    # vis_mixing_cls(source_gt, param['mix'].view(source_gt.shape))
 
     if cls_dist is not None:
-        data, target = cls_dist_mix(
+        data, target, mixed = cls_dist_mix(
             mask=param['mix'], 
             ignore_cls=param['ignore_cls'], 
             data=data, target=target, cls_dist=cls_dist,
         )
+        if not mixed:
+            data, target = one_mix(mask=param['mix'], data=data, target=target)
     else:
         data, target = one_mix(mask=param['mix'], data=data, target=target)
 
@@ -204,6 +254,7 @@ def strong_transform(param, data=None, target=None, cls_dist=None):
         data=data,
         target=target)
     data, target = gaussian_blur(blur=param['blur'], data=data, target=target)
+    
     return data, target
 
 
@@ -312,6 +363,12 @@ if __name__ == '__main__':
     from mmcv.utils import Config
     from mmseg.datasets import build_dataset
     
+    cls_name = [
+        'road', 'sidewalk', 'building', 'wall', 'fence', 'pole', 'traffic light', 'traffic sign',
+        'vegetation', 'terrain', 'sky', 'person', 'rider', 'car', 'truck', 'bus', 'train', 'motorcycle',
+        'bicycle',
+    ]
+
     cfg = Config.fromfile(
         'configs/_base_/datasets/uda_cityscapes_to_acdc_512x512_debug.py'
     )

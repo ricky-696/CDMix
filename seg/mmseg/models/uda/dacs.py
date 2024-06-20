@@ -293,7 +293,8 @@ class DACS(UDADecorator):
                       target_img_metas,
                       rare_class=None,
                       valid_pseudo_mask=None,
-                      cls_dist=None,):
+                      cls_dist=None,
+                      ignore_cls=None):
         """Forward function for training.
 
         Args:
@@ -313,6 +314,16 @@ class DACS(UDADecorator):
         batch_size = img.shape[0]
         dev = img.device
 
+        # transform cls_dist to one batch
+        if cls_dist is not None:
+            cls_dist_cpu = {
+                'prob': {k: v[0].cpu() for k, v in cls_dist['prob'].items()},
+                'bin_edges': cls_dist['bin_edges'][0].cpu(),
+                'relation': {k: v[0].cpu() for k, v in cls_dist['relation'].items()},
+            }
+            
+        del cls_dist
+        
         # Init/update ema model
         if self.local_iter == 0:
             self._init_ema_weights()
@@ -400,12 +411,16 @@ class DACS(UDADecorator):
 
             for i in range(batch_size):
                 strong_parameters['mix'] = mix_masks[i]
+                
+                if ignore_cls is not None:
+                    strong_parameters['ignore_cls'] = ignore_cls[i]
+                    
                 mixed_img[i], mixed_lbl[i] = strong_transform(
                     strong_parameters,
                     data=torch.stack((img[i], target_img[i])),
                     target=torch.stack(
                         (gt_semantic_seg[i][0], pseudo_label[i])),
-                    # cls_dist=cls_dist,
+                    cls_dist=cls_dist_cpu,
                 )
                 _, mixed_seg_weight[i] = strong_transform(
                     strong_parameters,

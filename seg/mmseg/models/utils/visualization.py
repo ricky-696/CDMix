@@ -61,6 +61,10 @@ Cityscapes_palette = [
 ]
 
 
+def denorm(img, mean, std):
+    return img.mul(std).add(mean) / 255.0
+
+
 def colorize_mask(mask, palette):
     zero_pad = 256 * 3 - len(palette)
     for i in range(zero_pad):
