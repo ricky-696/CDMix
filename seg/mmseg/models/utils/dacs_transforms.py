@@ -157,8 +157,7 @@ def seg_sliding_windows(source_cls, cls_mask, gt_mask, cls_dist_mat, cls_relatio
         #     'topk_cls_dist-2: ', cls_name[topk_cls_dist[1][0]], topk_cls_dist[1][1],
         # )
         
-        sample_idx = torch.randint(0, valid_windows.shape[0], (1,)).item()
-        return valid_windows[sample_idx], mask_bbox
+        return valid_windows[-1], mask_bbox
     else:
         return None, None
 

@@ -567,6 +567,6 @@ class DACS(UDADecorator):
                 del seg_debug, mixed_seg_weight, mixed_lbl, pseudo_label
         self.local_iter += 1
 
-        gc.collect()
-        torch.cuda.empty_cache()
+        # gc.collect()
+        # torch.cuda.empty_cache()
         return log_vars

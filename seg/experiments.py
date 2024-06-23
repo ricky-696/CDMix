@@ -375,7 +375,7 @@ def generate_experiment_cfgs(id):
     opt, lr, schedule, pmult = 'adamw', 0.00006, 'poly10warm', True
     crop = '512x512'
     cdmix = True
-    gpu_model = 'NVIDIARTX4090'
+    gpu_model = 'NVIDIATITANRTX'
     prefetch_factor = 1
     datasets = [
         ('gta', 'cityscapes'),
@@ -398,7 +398,7 @@ def generate_experiment_cfgs(id):
     # -------------------------------------------------------------------------
     # yapf: disable
     if id == 80:
-        seeds = [0]
+        seeds = [0, 1, 2]
         architecture, backbone = 'hrda1-512-0.1_daformer_sepaspp', 'mitb5'
         uda, rcs_T = 'dacs_a999_fdthings', 0.01
         crop, rcs_min_crop = '1024x1024', 0.5 * (2 ** 2)
@@ -411,7 +411,7 @@ def generate_experiment_cfgs(id):
             # ('cityscapesHR', 'darkzurichHR', 'separate'),
         ]:
             for seed in seeds:
-                gpu_model = gpu_model
+                gpu_model = 'NVIDIATITANRTX'
                 # plcrop is only necessary for Cityscapes as target domains
                 # ACDC and DarkZurich have no rectification artifacts.
                 plcrop = 'v2' if 'cityscapes' in target else False
