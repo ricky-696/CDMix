@@ -46,6 +46,11 @@ def train_segmentor(model,
     """Launch segmentor training."""
     logger = get_root_logger(cfg.log_level)
 
+    if hasattr(cfg.data, 'prefetch_factor'):
+        prefetch_factor = cfg.data.prefetch_factor
+    else:
+        prefetch_factor = 2
+
     # prepare data loaders
     dataset = dataset if isinstance(dataset, (list, tuple)) else [dataset]
     data_loaders = [
@@ -57,7 +62,8 @@ def train_segmentor(model,
             len(cfg.gpu_ids),
             dist=distributed,
             seed=cfg.seed,
-            drop_last=True) for ds in dataset
+            drop_last=True,
+            prefetch_factor=prefetch_factor) for ds in dataset
     ]
 
     # put model on gpus
@@ -118,7 +124,8 @@ def train_segmentor(model,
             samples_per_gpu=1,
             workers_per_gpu=cfg.data.workers_per_gpu,
             dist=distributed,
-            shuffle=False)
+            shuffle=False,
+            prefetch_factor=prefetch_factor)
         eval_cfg = cfg.get('evaluation', {})
         eval_cfg['by_epoch'] = cfg.runner['type'] != 'IterBasedRunner'
         eval_hook = DistEvalHook if distributed else EvalHook

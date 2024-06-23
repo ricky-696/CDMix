@@ -17,6 +17,7 @@
 
 import math
 import os
+import gc
 import random
 from copy import deepcopy
 
@@ -441,6 +442,8 @@ class DACS(UDADecorator):
             mix_loss, mix_log_vars = self._parse_losses(mix_losses)
             log_vars.update(mix_log_vars)
             mix_loss.backward()
+            
+            del mix_loss
 
         # Masked Training
         if self.enable_masking and self.mask_mode.startswith('separate'):
@@ -453,6 +456,8 @@ class DACS(UDADecorator):
             masked_loss, masked_log_vars = self._parse_losses(masked_loss)
             log_vars.update(masked_log_vars)
             masked_loss.backward()
+            
+            del masked_loss, pseudo_weight
 
         if self.local_iter % self.debug_img_interval == 0 and \
                 not self.source_only:
@@ -520,6 +525,8 @@ class DACS(UDADecorator):
                     os.path.join(out_dir,
                                  f'{(self.local_iter + 1):06d}_{j}.png'))
                 plt.close()
+                
+            del mixed_img
 
         if self.local_iter % self.debug_img_interval == 0:
             out_dir = os.path.join(self.train_cfg['work_dir'], 'debug')
@@ -557,7 +564,9 @@ class DACS(UDADecorator):
                         os.path.join(out_dir,
                                      f'{(self.local_iter + 1):06d}_{j}_s.png'))
                     plt.close()
-                del seg_debug
+                del seg_debug, mixed_seg_weight, mixed_lbl, pseudo_label
         self.local_iter += 1
 
+        gc.collect()
+        torch.cuda.empty_cache()
         return log_vars
