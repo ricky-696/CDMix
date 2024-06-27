@@ -405,13 +405,13 @@ def generate_experiment_cfgs(id):
         inference = 'slide'
         mask_block_size, mask_ratio = 64, 0.7
         for source,          target,         mask_mode in [
-            # ('gtaHR',        'cityscapesHR', 'separatetrgaug'),
+            ('gtaHR',        'cityscapesHR', 'separatetrgaug'),
             # ('synthiaHR',    'cityscapesHR', 'separatetrgaug'),
-            ('cityscapesHR', 'acdcHR',       'separate'),
+            # ('cityscapesHR', 'acdcHR',       'separate'),
             # ('cityscapesHR', 'darkzurichHR', 'separate'),
         ]:
             for seed in seeds:
-                gpu_model = 'NVIDIATITANRTX'
+                gpu_model = 'NVIDIA3090'
                 # plcrop is only necessary for Cityscapes as target domains
                 # ACDC and DarkZurich have no rectification artifacts.
                 plcrop = 'v2' if 'cityscapes' in target else False

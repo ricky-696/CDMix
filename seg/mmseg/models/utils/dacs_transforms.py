@@ -97,18 +97,50 @@ def vis_mixing_cls(source_img, mixing_img, ori_target_img, mixed_target_img, sou
     plt.close()
 
 
-def seg_sliding_windows(source_cls, cls_mask, gt_mask, cls_dist_mat, cls_relation, step_size=1) -> torch.tensor:
+def sliding_window(topk_cls, gt_mask, all_windows, dist=None):
+    """
+        Args:
+            topk_cls: list, top k classes
+            gt_mask: tensor, shape (H, W), groundtruth mask
+            all_windows: tensor, shape (num_windows, 4), all sliding windows
+            dist: dict, key is cls, value is tuple of (min_val, max_val), class distance
+            
+        return:
+            valid_windows: tensor, shape (num_windows, 4), valid sliding windows
+    """
+    cls_diou_losses = {}
+    for cls in topk_cls:
+        gt_bbox = mask_to_bbox(gt_mask==cls).expand(all_windows.shape[0], -1)
+
+        # diou_losses: the diou loss for all sliding windows, shape: [num_windows]
+        diou_losses, ious = diou_loss(gt_bbox, all_windows)
+        cls_diou_losses[cls] = diou_losses
+
+    # check if exist one windows axis all in range of local_dist, return axis
+    diou_checks = torch.ones(all_windows.shape[0], dtype=torch.bool) # default is true
+    for cls in topk_cls:
+        min_val, max_val = dist[cls]
+        diou_losses = cls_diou_losses[cls]
+        diou_checks &= (diou_losses >= min_val) & (diou_losses <= max_val)
+
+    valid_windows = all_windows[diou_checks]
+    
+    return valid_windows
+
+
+def seg_sliding_windows(source_cls, cls_mask, gt_mask, local_dist, cls_dist_mat, cls_relation, step_size=1) -> torch.tensor:
     """
         Args:
             source_cls: int, source class
             cls_mask: tensor, shape (H, W), binary mask of source class
             gt_mask: tensor, shape (H, W), groundtruth mask
+            local_dist: dict, key is source_cls, value is tuple of (min_val, max_val), local distance from source img
             cls_dist_mat: dict, key is tuple of (source_cls, cls), value is tuple of (min_val, max_val)
-
+            cls_relation: dict, key is source_cls, value is list of tuple of (cls, distance)
         return:
             window: tensor, shape (4,), x1, y1, x2, y2
     """
-
+    
     mask_bbox = mask_to_bbox(cls_mask)[0] # x1, y1, x2, y2
 
     # Compute the window size
@@ -124,40 +156,35 @@ def seg_sliding_windows(source_cls, cls_mask, gt_mask, cls_dist_mat, cls_relatio
 
     # shape: [num_windows, 4]
     all_windows = torch.stack((flat_x, flat_y, flat_x + window_size[0], flat_y + window_size[1])).t()
-    
-    # get groundtruth cls, shape: [num_cls]
     gt_cls = torch.unique(gt_mask)
-    gt_cls = gt_cls[gt_cls != 255].cpu().numpy() # remove background cls
-
-    cls_diou_losses = {}
-    for cls in gt_cls:
-        gt_bbox = mask_to_bbox(gt_mask==cls).expand(all_windows.shape[0], -1)
-
-        # diou_losses: the diou loss for all sliding windows, shape: [num_windows]
-        diou_losses, ious = diou_loss(gt_bbox, all_windows)
-        cls_diou_losses[cls] = diou_losses
+    topk = 2
+    
+    # using local distance to filter out the windows
+    sorted_local_dist = sorted(local_dist.items(), key=lambda item: item[1][0])
+    local_topk_cls = [cls for cls, _ in sorted_local_dist if cls in gt_cls][:topk]
+    
+    if len(local_topk_cls):
+        valid_windows = sliding_window(local_topk_cls, gt_mask, all_windows, local_dist)
+        local = True
+    
+    # using global distance from top k cls relation to filter out the windows if local_valid_windows is empty
+    if len(valid_windows) == 0:
+        local = False
+        cls_relation = cls_relation[source_cls][:, 0].to(gt_mask.dtype)
+        topk_gt_cls = [cls.item() for cls in cls_relation if cls in gt_cls][:topk]
+        topk_cls_dist = {cls: cls_dist_mat[(source_cls, cls)] for cls in topk_gt_cls}
         
-    # Choose top k cls relation
-    top_k = 2
-    topk_cls_relation = [cls[0] for cls in cls_relation[source_cls] if cls[0] in cls_diou_losses][:top_k]
-    topk_cls_dist = [(cls, cls_dist_mat[(source_cls, cls)]) for cls in topk_cls_relation]
-
-    # check if exist one windows axis all in range of topk_cls_dist, return axis
-    diou_checks = torch.ones(all_windows.shape[0], dtype=torch.bool)
-    for cls, (min_val, max_val) in topk_cls_dist:
-        diou_losses = cls_diou_losses[cls]
-        diou_checks &= (diou_losses >= min_val) & (diou_losses <= max_val)
-
-    valid_windows = all_windows[diou_checks]
+        valid_windows = sliding_window(topk_gt_cls, gt_mask, all_windows, topk_cls_dist)
 
     if valid_windows.shape[0] > 0:
-        # print(
-        #     'source_cls: ', cls_name[source_cls], 
-        #     'topk_cls_dist-1: ', cls_name[topk_cls_dist[0][0]], topk_cls_dist[0][1],
-        #     'topk_cls_dist-2: ', cls_name[topk_cls_dist[1][0]], topk_cls_dist[1][1],
-        # )
-        
-        return valid_windows[-1], mask_bbox
+        vis_cls_dist = local_dist if local else topk_cls_dist
+        vis_cls = local_topk_cls if local else topk_gt_cls
+        print('source_cls: ', cls_name[source_cls])
+        for cls in vis_cls:
+            print('topk_cls: ', cls_name[cls], 'dist: ', vis_cls_dist[cls])
+            
+        sample_idx = torch.randint(0, valid_windows.shape[0], (1,)).item()
+        return valid_windows[sample_idx], mask_bbox
     else:
         return None, None
 
@@ -195,48 +222,74 @@ def cls_dist_mix(mask, ignore_cls, data=None, target=None, weight=None, cls_dist
             cls_dist_mat[keys] = (cls_dist['bin_edges'][bin_idx], cls_dist['bin_edges'][bin_idx + 1])
 
     # for every cls, chossen the best mixing axis
+    source_gt_cls = torch.unique(mixing_gt)
+    source_gt_cls = source_gt_cls[source_gt_cls != 255]
     mixed = False
-    for cls in torch.unique(mixing_gt):
-        if cls != 255:
-            cls_mask = mixing_gt==cls
-            mix_axis, ori_axis = seg_sliding_windows(
-                source_cls=cls.item(), 
-                cls_mask=cls_mask,
-                gt_mask=target_gt,
-                cls_dist_mat=cls_dist_mat,
-                cls_relation=cls_dist['relation'],
+    for cls in source_gt_cls:
+        cls_mask = mixing_gt==cls
+        
+        # count local distance from source img, local_dist[cls] =  (min_val, max_val)
+        local_dist = {}
+        for s_cls in source_gt_cls:
+            if cls != s_cls:
+                s_cls = s_cls.item()
+                cls_bbox = mask_to_bbox(cls_mask)
+                s_cls_bbox = mask_to_bbox(mixing_gt==s_cls)
+
+                diou_losses, ious = diou_loss(cls_bbox, s_cls_bbox)
+                diou_losses = diou_losses.cpu().numpy()
+                bin_idx = np.digitize(diou_losses, cls_dist['bin_edges']) - 1
+                local_dist[s_cls] = torch.tensor((cls_dist['bin_edges'][bin_idx][0], cls_dist['bin_edges'][bin_idx + 1][0]))
+            
+        mix_axis, ori_axis = seg_sliding_windows(
+            source_cls=cls.item(), 
+            cls_mask=cls_mask,
+            gt_mask=target_gt,
+            local_dist = local_dist,
+            cls_dist_mat=cls_dist_mat,
+            cls_relation=cls_dist['relation'],
+        )
+
+        if mix_axis is not None:
+            mixed = True
+            ori_x1, ori_y1, ori_x2, ori_y2 = ori_axis
+            mix_x1, mix_y1, mix_x2, mix_y2 = mix_axis
+
+            ori_target_img = target_img.clone()
+
+            masked_img = source_img * cls_mask
+            mix_img = masked_img[:, ori_y1:ori_y2, ori_x1:ori_x2]
+            target_img[:, mix_y1:mix_y2, mix_x1:mix_x2].copy_(
+                torch.where(mix_img != 0, mix_img, target_img[:, mix_y1:mix_y2, mix_x1:mix_x2])
             )
 
-            if mix_axis is not None:
-                mixed = True
-                ori_x1, ori_y1, ori_x2, ori_y2 = ori_axis
-                mix_x1, mix_y1, mix_x2, mix_y2 = mix_axis
+            ori_target_gt = target_gt.clone()
+            
+            masked_gt = source_gt * cls_mask
+            mix_gt = masked_gt[ori_y1:ori_y2, ori_x1:ori_x2]
+            target_gt[mix_y1:mix_y2, mix_x1:mix_x2].copy_(
+                torch.where(mix_gt != 0, mix_gt, target_gt[mix_y1:mix_y2, mix_x1:mix_x2])
+            )
 
-                # ori_target_img = target_img.clone()
-
-                masked_img = source_img * cls_mask
-                mix_img = masked_img[:, ori_y1:ori_y2, ori_x1:ori_x2]
-                target_img[:, mix_y1:mix_y2, mix_x1:mix_x2].copy_(
-                    torch.where(mix_img != 0, mix_img, target_img[:, mix_y1:mix_y2, mix_x1:mix_x2])
-                )
-
-                # ori_target_gt = target_gt.clone()
-                
-                masked_gt = source_gt * cls_mask
-                mix_gt = masked_gt[ori_y1:ori_y2, ori_x1:ori_x2]
-                target_gt[mix_y1:mix_y2, mix_x1:mix_x2].copy_(
-                    torch.where(mix_gt != 0, mix_gt, target_gt[mix_y1:mix_y2, mix_x1:mix_x2])
-                )
-
-                masked_weight = source_weight * cls_mask
-                mix_weight = masked_weight[ori_y1:ori_y2, ori_x1:ori_x2]
-                target_weight[mix_y1:mix_y2, mix_x1:mix_x2].copy_(
-                    torch.where(mix_weight != 0, mix_weight, target_weight[mix_y1:mix_y2, mix_x1:mix_x2])
-                )
-                
-                # vis_mix_cls = masked_gt.clone()
-                # vis_mix_cls[vis_mix_cls == 0] = 255
-                # vis_mixing_cls(source_img, mix_img, ori_target_img, target_img, source_gt, vis_mix_cls, ori_target_gt, target_gt)
+            masked_weight = source_weight * cls_mask
+            mix_weight = masked_weight[ori_y1:ori_y2, ori_x1:ori_x2]
+            target_weight[mix_y1:mix_y2, mix_x1:mix_x2].copy_(
+                torch.where(mix_weight != 0, mix_weight, target_weight[mix_y1:mix_y2, mix_x1:mix_x2])
+            )
+            
+            vis_mix_cls = masked_gt.clone()
+            vis_mix_cls[vis_mix_cls == 0] = 255
+            print('-------------------------------------------------')
+            vis_mixing_cls(
+                torch.clamp(denorm(source_img, means, stds), 0, 1)[0], 
+                torch.clamp(denorm(mix_img, means, stds), 0, 1)[0], 
+                torch.clamp(denorm(ori_target_img, means, stds), 0, 1)[0], 
+                torch.clamp(denorm(target_img, means, stds), 0, 1)[0], 
+                source_gt, vis_mix_cls, ori_target_gt, target_gt
+            )
+        else:
+            # ToDo: using one mix for invalid cls
+            pass
         
     return target_img.unsqueeze(0), target_gt.unsqueeze(0).unsqueeze(0), target_weight.unsqueeze(0).unsqueeze(0), mixed
 
@@ -416,10 +469,13 @@ if __name__ == '__main__':
         strong_parameters['mix'] = mix_masks[0]
         strong_parameters['ignore_cls'] = torch.tensor([0, 1, 10], dtype=strong_parameters['mix'].dtype) # ignore road, sidewalk, sky
         
-        mixed_img, mixed_lbl = strong_transform(
+        img = torch.stack((data['img'].data, data['target_img'].data))
+        target = torch.stack((data['gt_semantic_seg'].data[0], data['target_gt'].data[0]))
+        
+        mixed_data, mixed_target, mixed_weight = strong_transform(
             strong_parameters,
-            data=torch.stack((data['img'].data, data['target_img'].data)),
-            target=torch.stack(
-                (data['gt_semantic_seg'].data[0], data['target_gt'].data[0])),
+            data=img,
+            target=target,
+            weight=torch.ones_like(target),
             cls_dist=data['cls_dist'],
         )
