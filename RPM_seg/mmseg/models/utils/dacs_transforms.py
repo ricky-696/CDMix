@@ -235,8 +235,9 @@ def cls_dist_mix(mask, data=None, target=None, weight=None, cls_dist=None, param
 
                 diou_losses, ious = diou_loss(cls_bbox, s_cls_bbox)
                 diou_losses = diou_losses.cpu().numpy()
-                bin_idx = np.digitize(diou_losses, cls_dist['bin_edges']) - 1
-                local_dist[s_cls] = torch.tensor((cls_dist['bin_edges'][bin_idx][0], cls_dist['bin_edges'][bin_idx + 1][0]))
+                bin_idx = int(np.digitize(diou_losses, cls_dist['bin_edges']) - 1)
+                bin_idx = min(bin_idx, len(cls_dist['bin_edges']) - 2)
+                local_dist[s_cls] = torch.tensor((cls_dist['bin_edges'][bin_idx], cls_dist['bin_edges'][bin_idx + 1]))
             
         mix_axis, ori_axis = seg_sliding_windows(
             source_cls=cls.item(), 
