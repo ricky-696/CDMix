@@ -161,3 +161,30 @@ def subplotimg(ax,
     ax.imshow(img, **kwargs)
     if title is not None:
         ax.set_title(title)
+
+
+def visualize_segmentation_mask(mask, file_name='mask.jpg'):
+    """
+    Visualize a segmentation mask where 0 is black and 1 is red.
+
+    Parameters:
+    mask (torch.Tensor): A 2D tensor of shape [H, W] with values 0 or 1.
+    """
+    # Ensure mask is a 2D tensor
+    if mask.ndimension() != 2:
+        raise ValueError("Input mask should be a 2D tensor")
+    
+    # Convert the tensor to a numpy array
+    mask_np = mask.numpy()
+
+    # Create an RGB image
+    height, width = mask_np.shape
+    rgb_image = np.zeros((height, width, 3), dtype=np.uint8)
+
+    # Set 0 to black and 1 to red
+    rgb_image[mask_np == 0] = [0, 0, 0]   # black
+    rgb_image[mask_np == 1] = [255, 0, 0] # red
+
+    # Display the image
+    plt.imsave(file_name, rgb_image)
+

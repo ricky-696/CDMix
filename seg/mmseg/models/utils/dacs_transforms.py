@@ -13,7 +13,27 @@ sys.path.append('.')
 from matplotlib import pyplot as plt
 from torch.distributions import Categorical
 from tools.classes_distance.utils import diou_loss, mask_to_bbox
-from mmseg.models.utils.visualization import subplotimg
+from mmseg.models.utils.visualization import subplotimg, visualize_segmentation_mask
+
+#                       佛祖保佑，Bug全修，準時畢業
+# //                            _ooOoo_
+# //                           o8888888o
+# //                           88" . "88
+# //                           (| -_- |)
+# //                            O\ = /O
+# //                        ____/`---'\____
+# //                      .   ' \\| |// `.
+# //                       / \\||| : |||// \
+# //                     / _||||| -:- |||||- \
+# //                       | | \\\ - /// | |
+# //                     | \_| ''\---/'' | |
+# //                      \ .-\__ `-` ___/-. /
+# //                   ___`. .' /--.--\ `. . __
+# //                ."" '< `.___\_<|>_/___.' >'"".
+# //               | | : `- \`.;`\ _ /`;.`/ - ` : | |
+# //                 \ \ `-. \_ __\ /__ _/ .-` / /
+# //         ======`-.____`-.___\_____/___.-`____.-'======
+# //                            `=---='
 
 
 def extract_window_v2(all_windows, cls_diou_losses, topk_cls_dist, topk_cls_dist_indices):
@@ -156,20 +176,21 @@ def seg_sliding_windows(source_cls, cls_mask, gt_mask, local_dist, cls_dist_mat,
 
     # shape: [num_windows, 4]
     all_windows = torch.stack((flat_x, flat_y, flat_x + window_size[0], flat_y + window_size[1])).t()
-    gt_cls = torch.unique(gt_mask)
+    gt_cls = torch.unique(gt_mask).cpu()
     topk = 2
     
     # using local distance to filter out the windows
     sorted_local_dist = sorted(local_dist.items(), key=lambda item: item[1][0])
     local_topk_cls = [cls for cls, _ in sorted_local_dist if cls in gt_cls][:topk]
+    valid_windows = []
     
     if len(local_topk_cls):
         valid_windows = sliding_window(local_topk_cls, gt_mask, all_windows, local_dist)
-        local = True
+        # local = True
     
     # using global distance from top k cls relation to filter out the windows if local_valid_windows is empty
     if len(valid_windows) == 0:
-        local = False
+        # local = False
         cls_relation = cls_relation[source_cls][:, 0].to(gt_mask.dtype)
         topk_gt_cls = [cls.item() for cls in cls_relation if cls in gt_cls][:topk]
         topk_cls_dist = {cls: cls_dist_mat[(source_cls, cls)] for cls in topk_gt_cls}
@@ -177,11 +198,11 @@ def seg_sliding_windows(source_cls, cls_mask, gt_mask, local_dist, cls_dist_mat,
         valid_windows = sliding_window(topk_gt_cls, gt_mask, all_windows, topk_cls_dist)
 
     if valid_windows.shape[0] > 0:
-        vis_cls_dist = local_dist if local else topk_cls_dist
-        vis_cls = local_topk_cls if local else topk_gt_cls
-        print('source_cls: ', cls_name[source_cls])
-        for cls in vis_cls:
-            print('topk_cls: ', cls_name[cls], 'dist: ', vis_cls_dist[cls])
+        # vis_cls_dist = local_dist if local else topk_cls_dist
+        # vis_cls = local_topk_cls if local else topk_gt_cls
+        # print('source_cls: ', cls_name[source_cls])
+        # for cls in vis_cls:
+        #     print('topk_cls: ', cls_name[cls], 'dist: ', vis_cls_dist[cls])
             
         sample_idx = torch.randint(0, valid_windows.shape[0], (1,)).item()
         return valid_windows[sample_idx], mask_bbox
@@ -201,10 +222,10 @@ def cls_dist_mix(mask, ignore_cls, data=None, target=None, weight=None, cls_dist
     gt_mask = mask.view(source_gt.shape)
     img_mask = gt_mask.unsqueeze(0).expand(C, -1, -1)
 
-    # ignore some big class
-    mixing_gt = source_gt * gt_mask
-    mask = (mixing_gt[..., None] == ignore_cls).any(-1)
-    mixing_gt[mask] = 255
+    mixing_gt = torch.where(gt_mask == 0, 255, source_gt)
+
+    source_gt_cls = torch.unique(mixing_gt)
+    source_gt_cls = source_gt_cls[source_gt_cls != 255]
 
     # get cls prob
     cls_dist_mat = {}
@@ -217,14 +238,12 @@ def cls_dist_mix(mask, ignore_cls, data=None, target=None, weight=None, cls_dist
 
             distribution = Categorical(probs=value)
             bin_idx = min(distribution.sample((3, )))
+            bin_idx = min(bin_idx, len(cls_dist['bin_edges']) - 2)
 
-            # 0-indexed, 0: [0, 0.1), 1: [0.1, 0.2), ..., 20: [1.9, 2.0]
+            # 0-indexed, 0: [0, 0.1), 1: [0.1, 0.2), ..., 19: [1.9, 2.0)
             cls_dist_mat[keys] = (cls_dist['bin_edges'][bin_idx], cls_dist['bin_edges'][bin_idx + 1])
 
     # for every cls, chossen the best mixing axis
-    source_gt_cls = torch.unique(mixing_gt)
-    source_gt_cls = source_gt_cls[source_gt_cls != 255]
-    mixed = False
     for cls in source_gt_cls:
         cls_mask = mixing_gt==cls
         
@@ -250,48 +269,77 @@ def cls_dist_mix(mask, ignore_cls, data=None, target=None, weight=None, cls_dist
             cls_relation=cls_dist['relation'],
         )
 
+        masked_img = source_img * cls_mask
+        masked_gt = source_gt * cls_mask
+        masked_weight = source_weight * cls_mask
+
         if mix_axis is not None:
-            mixed = True
             ori_x1, ori_y1, ori_x2, ori_y2 = ori_axis
             mix_x1, mix_y1, mix_x2, mix_y2 = mix_axis
 
-            ori_target_img = target_img.clone()
+            # ori_target_img = target_img.clone()
 
-            masked_img = source_img * cls_mask
             mix_img = masked_img[:, ori_y1:ori_y2, ori_x1:ori_x2]
             target_img[:, mix_y1:mix_y2, mix_x1:mix_x2].copy_(
                 torch.where(mix_img != 0, mix_img, target_img[:, mix_y1:mix_y2, mix_x1:mix_x2])
             )
 
-            ori_target_gt = target_gt.clone()
+            # ori_target_gt = target_gt.clone()
             
-            masked_gt = source_gt * cls_mask
             mix_gt = masked_gt[ori_y1:ori_y2, ori_x1:ori_x2]
             target_gt[mix_y1:mix_y2, mix_x1:mix_x2].copy_(
                 torch.where(mix_gt != 0, mix_gt, target_gt[mix_y1:mix_y2, mix_x1:mix_x2])
             )
 
-            masked_weight = source_weight * cls_mask
             mix_weight = masked_weight[ori_y1:ori_y2, ori_x1:ori_x2]
             target_weight[mix_y1:mix_y2, mix_x1:mix_x2].copy_(
                 torch.where(mix_weight != 0, mix_weight, target_weight[mix_y1:mix_y2, mix_x1:mix_x2])
             )
             
-            vis_mix_cls = masked_gt.clone()
-            vis_mix_cls[vis_mix_cls == 0] = 255
-            print('-------------------------------------------------')
-            vis_mixing_cls(
-                torch.clamp(denorm(source_img, means, stds), 0, 1)[0], 
-                torch.clamp(denorm(mix_img, means, stds), 0, 1)[0], 
-                torch.clamp(denorm(ori_target_img, means, stds), 0, 1)[0], 
-                torch.clamp(denorm(target_img, means, stds), 0, 1)[0], 
-                source_gt, vis_mix_cls, ori_target_gt, target_gt
-            )
+            # vis_mix_cls = masked_gt.clone()
+            # vis_mix_cls[vis_mix_cls == 0] = 255
+            # print('-------------------------------------------------')
+            # vis_mixing_cls(
+            #     torch.clamp(denorm(source_img, means, stds), 0, 1)[0], 
+            #     torch.clamp(denorm(masked_img, means, stds), 0, 1)[0], 
+            #     torch.clamp(denorm(ori_target_img, means, stds), 0, 1)[0], 
+            #     torch.clamp(denorm(target_img, means, stds), 0, 1)[0], 
+            #     source_gt, vis_mix_cls, ori_target_gt, target_gt
+            # )
+            # print('cd_mix')
         else:
-            # ToDo: using one mix for invalid cls
-            pass
+            # using ori_axis to mix for invalid cls         
+
+            # ori_target_img = target_img.clone()
+
+            target_img.copy_(
+                torch.where(masked_img != 0, masked_img, target_img)
+            )
+
+            # ori_target_gt = target_gt.clone()
+            
+            target_gt.copy_(
+                torch.where(masked_gt != 0, masked_gt, target_gt)
+            )
+
+            target_weight.copy_(
+                torch.where(masked_weight != 0, masked_weight, target_weight)
+            )
+            
+            # vis_mix_cls = masked_gt.clone()
+            # vis_mix_cls[vis_mix_cls == 0] = 255
+
+            # vis_mixing_cls(
+            #     torch.clamp(denorm(source_img, means, stds), 0, 1)[0], 
+            #     torch.clamp(denorm(masked_img, means, stds), 0, 1)[0], 
+            #     torch.clamp(denorm(ori_target_img, means, stds), 0, 1)[0], 
+            #     torch.clamp(denorm(target_img, means, stds), 0, 1)[0], 
+            #     source_gt, vis_mix_cls, ori_target_gt, target_gt
+            # )
+            # print('one_mix')
+
         
-    return target_img.unsqueeze(0), target_gt.unsqueeze(0).unsqueeze(0), target_weight.unsqueeze(0).unsqueeze(0), mixed
+    return target_img.unsqueeze(0), target_gt.unsqueeze(0).unsqueeze(0), target_weight.unsqueeze(0).unsqueeze(0)
 
 
 def strong_transform(param, data=None, target=None, weight=None, cls_dist=None):
@@ -310,14 +358,11 @@ def strong_transform(param, data=None, target=None, weight=None, cls_dist=None):
     assert ((data is not None) or (target is not None))
 
     if cls_dist is not None:
-        mixed_data, mixed_target, mixed_weight, mixed = cls_dist_mix(
+        mixed_data, mixed_target, mixed_weight = cls_dist_mix(
             mask=param['mix'], 
             ignore_cls=param['ignore_cls'], 
             data=data, target=target, weight=weight, cls_dist=cls_dist,
         )
-        if not mixed:
-            mixed_data, mixed_target = one_mix(mask=param['mix'], data=data, target=target)
-            _, mixed_weight = one_mix(mask=param['mix'], data=None, target=weight)
     else:
         mixed_data, mixed_target = one_mix(mask=param['mix'], data=data, target=target)
         _, mixed_weight = one_mix(mask=param['mix'], data=None, target=weight)
