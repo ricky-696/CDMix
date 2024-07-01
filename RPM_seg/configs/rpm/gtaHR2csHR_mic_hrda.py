@@ -74,8 +74,7 @@ uda = dict(
     # mask的方式
     mask_type = 'proto_prob',
     # source data使用的路徑
-    data_root='/mnt/Nami/rayeh/data/gta/',
-    # data_root='/mnt/Nami/rayeh/data/cityscapes/',
+    data_root='/home/Ricky/0_project/CDMix/seg/data/gta',
     # rare class mix使用的溫度
     rcs_class_temp=0.5,
     # 使用稀少類混合方法
@@ -95,10 +94,10 @@ uda = dict(
     # and a mask ratio of 0.7
     mask_block_size=64,
      mask_generator=dict(
-        type='block', mask_ratio=0.6, mask_block_size=64, _delete_=True, usedCL = False,
-        r_0 = 0.4,
-        r_final= 0.5,
-        total_iteration = 40000))
+        type='block', mask_ratio=0.6, mask_block_size=64, _delete_=True, usedCL=False,
+        r_0=0.4,
+        r_final=0.5,
+        total_iteration=40000))
     
 # Optimizer Hyperparameters
 optimizer_config = None
