@@ -62,7 +62,7 @@ data = dict(
         # are only masked out if the training crop is at the periphery of the
         # image.
         target=dict(crop_pseudo_margins=[30, 240, 30, 30]),
-        cdmix=True,
+        cdmix=True, # Enable cdmix (Ricky's method)
     ),
     # Use one separate thread/worker for data loading.
     workers_per_gpu=1,
@@ -79,7 +79,7 @@ uda = dict(
     # rare class mix使用的溫度
     rcs_class_temp=0.5,
     # 使用稀少類混合方法
-    rare_class_mix = False,
+    rare_class_mix = True,
     # Apply masking to color-augmented target images
     mask_mode='separatetrgaug',
     # mask_mode='separate',
@@ -95,7 +95,7 @@ uda = dict(
     # and a mask ratio of 0.7
     mask_block_size=64,
      mask_generator=dict(
-        type='block', mask_ratio=0.4, mask_block_size=64, _delete_=True, usedCL = True,
+        type='block', mask_ratio=0.6, mask_block_size=64, _delete_=True, usedCL = False,
         r_0 = 0.4,
         r_final= 0.5,
         total_iteration = 40000))
