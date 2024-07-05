@@ -6,7 +6,7 @@
 
 # dataset settings
 dataset_type = 'CityscapesDataset'
-data_root = '/mnt/Nami/rayeh/data/cityscapes/'
+data_root = '/home/Ricky/0_project/CDMix/seg/data/cityscapes'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 crop_size = (1024, 1024)

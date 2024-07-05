@@ -93,11 +93,17 @@ uda = dict(
     # Use random patch masking with a patch size of 64x64
     # and a mask ratio of 0.7
     mask_block_size=64,
-     mask_generator=dict(
-        type='block', mask_ratio=0.6, mask_block_size=64, _delete_=True, usedCL=False,
+    mask_generator=dict(
+        type='block',
+        mask_ratio=0.7,
+        mask_block_size=64,
+        _delete_=True, 
+        usedCL=False,
         r_0=0.4,
-        r_final=0.5,
-        total_iteration=40000))
+        r_final=0.6,
+        total_iteration=40000,
+    ),
+)
     
 # Optimizer Hyperparameters
 optimizer_config = None
