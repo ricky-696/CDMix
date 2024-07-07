@@ -398,15 +398,15 @@ def generate_experiment_cfgs(id):
     # -------------------------------------------------------------------------
     # yapf: disable
     if id == 80:
-        seeds = [0, 1, 2]
+        seeds = [0]
         architecture, backbone = 'hrda1-512-0.1_daformer_sepaspp', 'mitb5'
         uda, rcs_T = 'dacs_a999_fdthings', 0.01
         crop, rcs_min_crop = '1024x1024', 0.5 * (2 ** 2)
         inference = 'slide'
         mask_block_size, mask_ratio = 64, 0.7
         for source,          target,         mask_mode in [
-            ('gtaHR',        'cityscapesHR', 'separatetrgaug'),
-            # ('synthiaHR',    'cityscapesHR', 'separatetrgaug'),
+            # ('gtaHR',        'cityscapesHR', 'separatetrgaug'),
+            ('synthiaHR',    'cityscapesHR', 'separatetrgaug'),
             # ('cityscapesHR', 'acdcHR',       'separate'),
             # ('cityscapesHR', 'darkzurichHR', 'separate'),
         ]:

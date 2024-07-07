@@ -24,7 +24,8 @@ def cnt_prob_distribution(args, cls_dists):
     cls_prob_distribution = {}
 
     if args.dist_func == 'diou':
-        bin_edges = np.arange(0, 2 + args.bin_interval, args.bin_interval)
+        bin_edges = np.arange(0, 2 + args.bin_interval, args.bin_interval) 
+        bin_edges[-1] = 2.1 # avoid max value overflow
         bin_edges = np.round(bin_edges, decimals=3)
 
     for key, value in cls_dists.items():
@@ -96,7 +97,7 @@ def count_classes_distance(args, dataset):
 def parse_args():
     parser = argparse.ArgumentParser(
         description='Count classes distance')
-    parser.add_argument('--config', type=str, default='configs/_base_/datasets/uda_cityscapes_to_acdc_512x512.py', help='dataset config')
+    parser.add_argument('--config', type=str, default='configs/_base_/datasets/uda_synthia_to_cityscapes_512x512.py', help='dataset config')
     parser.add_argument('--dist_func', type=str, default='diou', help='dist_func')
     parser.add_argument('--bin_interval', type=float, default=0.1, help='bin_interval')
     parser.add_argument('--dataset', type=str, nargs='+', default=['source', 'target'], help='dataset type: source, target, or both')
@@ -129,13 +130,16 @@ def main():
 
 if __name__ == '__main__':
     # debug
-    # args = parse_args()
-    # cls_dists = {}
-    # for i in range(10):
-    #     for j in range(10):
-    #         cls_dists[i, j] = [0, 0.5, 1]
-    #         cls_dists[j, i] = [0, 0.5, 1]
+    args = parse_args()
+    cls_dists = pickle.load(open('data/synthia/cls_dists_diou.pkl', 'rb'))
+    cls_prob_distribution = cnt_prob_distribution(args, cls_dists)
 
-    # cnt_prob_distribution(args, cls_dists)
+    with open('data/synthia/cls_prob_distribution_diou.pkl', 'wb') as f:
+        pickle.dump(cls_prob_distribution, f)
+
+    # bin_edges = np.array([0. , 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1. , 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.1]) # fix the fucking 2.0
+    # cls_dist = np.array([0, 0, 0, 1.95, 2.0])
+    # cls_dist_bins = np.digitize(cls_dist, bin_edges, right=False) - 1
+    # cls_dist_counts = np.bincount(cls_dist_bins, minlength=len(bin_edges) - 1)
 
     main()

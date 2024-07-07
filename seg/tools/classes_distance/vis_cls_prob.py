@@ -52,7 +52,7 @@ def prob_dist(cls_a, distribution, num_cls):
 
 
 if __name__ == '__main__':
-    with open('data/cityscapes/cls_prob_distribution_diou.pkl', 'rb') as file:
+    with open('data/synthia/cls_prob_distribution_diou.pkl', 'rb') as file:
         cls_dist = pickle.load(file)
 
     cls_name = [
@@ -67,5 +67,5 @@ if __name__ == '__main__':
     for cls_a in range(num_cls):
         prob_dist(cls_a, prob, num_cls)
 
-    # visualize(prob, cls_name, num_cls)
+    visualize(prob, cls_name, num_cls)
 

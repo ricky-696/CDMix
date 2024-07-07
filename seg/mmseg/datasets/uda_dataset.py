@@ -132,7 +132,7 @@ class UDADataset(object):
         for cls_a in range(num_cls):
             cls_realtion[cls_a] = []
             for cls_b in range(num_cls):
-                if cls_a != cls_b:
+                if cls_a != cls_b and len(np.unique(prob[cls_a, cls_b])) > 1: # prob[cls_a, cls_b] not all is 0
                     p = prob[cls_a, cls_b]
                     indices = np.arange(len(p))
 

@@ -230,17 +230,16 @@ def cls_dist_mix(mask, ignore_cls, data=None, target=None, weight=None, cls_dist
     # get cls prob
     cls_dist_mat = {}
     for keys, value in cls_dist['prob'].items():
-        if keys[0] == keys[1]:
+        value = torch.from_numpy(value) if type(value) == np.ndarray else value
+
+        if keys[0] == keys[1] or torch.all(torch.unique(value) == 0):
             cls_dist_mat[keys] = torch.tensor(0)
         else:
-            if type(value) == np.ndarray:
-                value = torch.from_numpy(value)
-
             distribution = Categorical(probs=value)
             bin_idx = min(distribution.sample((3, )))
             bin_idx = min(bin_idx, len(cls_dist['bin_edges']) - 2)
 
-            # 0-indexed, 0: [0, 0.1), 1: [0.1, 0.2), ..., 19: [1.9, 2.0)
+            # 0-indexed, 0: [0, 0.1), 1: [0.1, 0.2), ..., 20: [1.9, 2.0)
             cls_dist_mat[keys] = (cls_dist['bin_edges'][bin_idx], cls_dist['bin_edges'][bin_idx + 1])
 
     # for every cls, chossen the best mixing axis

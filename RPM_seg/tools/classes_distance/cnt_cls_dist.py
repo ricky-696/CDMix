@@ -24,7 +24,8 @@ def cnt_prob_distribution(args, cls_dists):
     cls_prob_distribution = {}
 
     if args.dist_func == 'diou':
-        bin_edges = np.arange(0, 2 + args.bin_interval, args.bin_interval)
+        bin_edges = np.arange(0, 2 + args.bin_interval, args.bin_interval) 
+        bin_edges[-1] = 2.1 # avoid max value overflow
         bin_edges = np.round(bin_edges, decimals=3)
 
     for key, value in cls_dists.items():
@@ -96,7 +97,7 @@ def count_classes_distance(args, dataset):
 def parse_args():
     parser = argparse.ArgumentParser(
         description='Count classes distance')
-    parser.add_argument('--config', type=str, default='configs/_base_/datasets/uda_cityscapes_to_acdc_512x512.py', help='dataset config')
+    parser.add_argument('--config', type=str, default='configs/_base_/datasets/uda_synthia_to_cityscapes_512x512.py', help='dataset config')
     parser.add_argument('--dist_func', type=str, default='diou', help='dist_func')
     parser.add_argument('--bin_interval', type=float, default=0.1, help='bin_interval')
     parser.add_argument('--dataset', type=str, nargs='+', default=['source', 'target'], help='dataset type: source, target, or both')
