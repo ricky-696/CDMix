@@ -1,4 +1,7 @@
 import pickle
+
+import matplotlib.colors as mcolors
+import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -17,14 +20,17 @@ def visualize(prob, cls_name, num_cls):
         fig.suptitle(f'Probability Distributions for cls: {cls_name[a]}', fontsize=20)
         
         x_values = np.arange(0, 2, 0.1)
+        x_color = np.linspace(1, 0, 20)
+        cm = plt.cm.get_cmap('RdYlBu_r')
+        
         width = 0.1  # 设置条形的宽度为0.1
-
+        
         for b in range(num_cls):
             row = b // columns
             col = b % columns
-            axs[row, col].bar(x_values, prob[a, b], width=width)
+            axs[row, col].bar(x_values, prob[a, b], width=width, color=cm(x_color), edgecolor='black')
             axs[row, col].set_title(f'({cls_name[a]}, {cls_name[b]})', fontsize=14)
-            axs[row, col].set_ylim(0, 1)
+            axs[row, col].set_ylim(0, max(prob[a, b]) * 1.5 + 1e-6)  # 设置 y 轴的范围
             axs[row, col].set_xlim(0, 2)  # 设置 x 轴的范围为 0 到 2
             axs[row, col].set_xticks(np.arange(0, 2.1, 0.5))  # 设置 x 轴刻度为 0 到 2，间隔为 0.5
 
@@ -52,7 +58,7 @@ def prob_dist(cls_a, distribution, num_cls):
 
 
 if __name__ == '__main__':
-    with open('data/synthia/cls_prob_distribution_diou.pkl', 'rb') as file:
+    with open('data/cityscapes/cls_prob_distribution_diou.pkl', 'rb') as file:
         cls_dist = pickle.load(file)
 
     cls_name = [
