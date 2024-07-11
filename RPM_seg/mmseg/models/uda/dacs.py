@@ -118,6 +118,10 @@ class DACS(UDADecorator):
         self.rare_class_mix = cfg['rare_class_mix']
         self.class_num = cfg['class_num']
         self.mask_type = cfg['mask_type']
+        self.dist_mode = cfg['dist_mode']
+        self.topk = cfg['topk']
+        
+        assert self.dist_mode == ['global', 'local'] or self.dist_mode == ['global'] or self.dist_mode == ['local']
         assert self.mix == 'class'
 
         self.debug_fdist_mask = None
@@ -487,6 +491,10 @@ class DACS(UDADecorator):
                 mix_masks = get_rare_class_mask(gt_semantic_seg,self.rcs_classprob,self.rcs_classes)
             else:
                 mix_masks = get_class_masks(gt_semantic_seg)
+                
+            # cdmix hyperparameter
+            strong_parameters['dist_mode'] = self.dist_mode
+            strong_parameters['topk'] = self.topk
 
             for i in range(batch_size):
                 strong_parameters['mix'] = mix_masks[i]

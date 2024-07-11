@@ -84,6 +84,10 @@ class DACS(UDADecorator):
         self.mask_mode = cfg['mask_mode']
         self.enable_masking = self.mask_mode is not None
         self.print_grad_magnitude = cfg['print_grad_magnitude']
+        self.dist_mode = cfg['dist_mode']
+        self.topk = cfg['topk']
+        
+        assert self.dist_mode == ['global', 'local'] or self.dist_mode == ['global'] or self.dist_mode == ['local']
         assert self.mix == 'class'
 
         self.debug_fdist_mask = None
@@ -409,7 +413,11 @@ class DACS(UDADecorator):
             mixed_img, mixed_lbl = [None] * batch_size, [None] * batch_size
             mixed_seg_weight = pseudo_weight.clone()
             mix_masks = get_class_masks(gt_semantic_seg)
-
+            
+            # cdmix hyperparameter
+            strong_parameters['dist_mode'] = self.dist_mode
+            strong_parameters['topk'] = self.topk
+            
             for i in range(batch_size):
                 strong_parameters['mix'] = mix_masks[i]
                 

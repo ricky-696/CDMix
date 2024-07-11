@@ -281,6 +281,8 @@ def generate_experiment_cfgs(id):
             
         # Setup cdmix
         cfg['data']['train']['cdmix'] = cdmix
+        cfg['uda']['topk'] = topk
+        cfg['uda']['dist_mode'] = dist_mode
 
         # Setup optimizer and schedule
         if 'dacs' in uda or 'minent' in uda or 'advseg' in uda:
@@ -374,7 +376,12 @@ def generate_experiment_cfgs(id):
     iters = 40000
     opt, lr, schedule, pmult = 'adamw', 0.00006, 'poly10warm', True
     crop = '512x512'
+    
+    # cdmix config
     cdmix = True
+    topk = 2
+    dist_mode = ['global', 'local']
+    
     gpu_model = 'NVIDIATITANRTX'
     prefetch_factor = 1
     datasets = [
@@ -405,8 +412,8 @@ def generate_experiment_cfgs(id):
         inference = 'slide'
         mask_block_size, mask_ratio = 64, 0.7
         for source,          target,         mask_mode in [
-            # ('gtaHR',        'cityscapesHR', 'separatetrgaug'),
-            ('synthiaHR',    'cityscapesHR', 'separatetrgaug'),
+            ('gtaHR',        'cityscapesHR', 'separatetrgaug'),
+            # ('synthiaHR',    'cityscapesHR', 'separatetrgaug'),
             # ('cityscapesHR', 'acdcHR',       'separate'),
             # ('cityscapesHR', 'darkzurichHR', 'separate'),
         ]:

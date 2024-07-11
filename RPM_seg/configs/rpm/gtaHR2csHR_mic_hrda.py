@@ -71,6 +71,9 @@ data = dict(
 )
 # MIC Parameters
 uda = dict(
+    # cdmix hyp
+    topk=2,
+    dist_mode=['global', 'local'],
     # mask的方式
     mask_type = 'proto_prob',
     # source data使用的路徑

@@ -246,6 +246,7 @@ def generate_experiment_cfgs(id):
         cfg['data'] = dict(
             samples_per_gpu=batch_size,
             workers_per_gpu=workers_per_gpu,
+            prefetch_factor=prefetch_factor,
             train={})
         # DAFormer legacy cropping that only works properly if the training
         # crop has the height of the (resized) target image.
@@ -277,6 +278,11 @@ def generate_experiment_cfgs(id):
                 mask_ratio=mask_ratio,
                 mask_block_size=mask_block_size,
                 _delete_=True)
+            
+        # Setup cdmix
+        cfg['data']['train']['cdmix'] = cdmix
+        cfg['uda']['topk'] = topk
+        cfg['uda']['dist_mode'] = dist_mode
 
         # Setup optimizer and schedule
         if 'dacs' in uda or 'minent' in uda or 'advseg' in uda:
@@ -297,7 +303,7 @@ def generate_experiment_cfgs(id):
         # Setup runner
         cfg['runner'] = dict(type='IterBasedRunner', max_iters=iters)
         cfg['checkpoint_config'] = dict(
-            by_epoch=False, interval=iters, max_keep_ckpts=1)
+            by_epoch=False, interval=iters // 10, max_keep_ckpts=1)
         cfg['evaluation'] = dict(interval=iters // 10, metric='mIoU')
 
         # Construct config name
@@ -370,7 +376,30 @@ def generate_experiment_cfgs(id):
     iters = 40000
     opt, lr, schedule, pmult = 'adamw', 0.00006, 'poly10warm', True
     crop = '512x512'
-    gpu_model = 'NVIDIAGeForceRTX2080Ti'
+    
+    # cdmix config
+    cdmix = True
+    topk = 2
+    dist_mode = ['global', 'local']
+    
+    #kevin's config
+    data_root='/home/Ricky/0_project/CDMix/seg/data/gta'
+    rare_class_mix = True
+    rcs_class_temp=0.5
+    mask_type = 'proto_prob'
+    mask_generator=dict(
+        type='block',
+        mask_ratio=0.7,
+        mask_block_size=64,
+        _delete_=True, 
+        usedCL=False,
+        r_0=0.4,
+        r_final=0.6,
+        total_iteration=40000,
+    ),
+    
+    gpu_model = 'NVIDIATITANRTX'
+    prefetch_factor = 1
     datasets = [
         ('gta', 'cityscapes'),
     ]
@@ -392,7 +421,7 @@ def generate_experiment_cfgs(id):
     # -------------------------------------------------------------------------
     # yapf: disable
     if id == 80:
-        seeds = [0, 1, 2]
+        seeds = [0]
         architecture, backbone = 'hrda1-512-0.1_daformer_sepaspp', 'mitb5'
         uda, rcs_T = 'dacs_a999_fdthings', 0.01
         crop, rcs_min_crop = '1024x1024', 0.5 * (2 ** 2)
@@ -405,7 +434,7 @@ def generate_experiment_cfgs(id):
             # ('cityscapesHR', 'darkzurichHR', 'separate'),
         ]:
             for seed in seeds:
-                gpu_model = 'NVIDIATITANRTX'
+                gpu_model = 'NVIDIA3090'
                 # plcrop is only necessary for Cityscapes as target domains
                 # ACDC and DarkZurich have no rectification artifacts.
                 plcrop = 'v2' if 'cityscapes' in target else False
@@ -427,11 +456,11 @@ def generate_experiment_cfgs(id):
         uda_hrda =     ('dacs_a999_fdthings', 0.01,  'v2',   *adamw)
         mask_mode, mask_ratio = 'separatetrgaug', 0.7
         for architecture,                      backbone,  uda_hp in [
-            ('dlv2red',                        'r101v1c', uda_advseg),
-            ('dlv2red',                        'r101v1c', uda_minent),
-            ('dlv2red',                        'r101v1c', uda_dacs),
-            ('dlv2red',                        'r101v1c', uda_daformer),
-            ('hrda1-512-0.1_dlv2red',          'r101v1c', uda_hrda),
+            # ('dlv2red',                        'r101v1c', uda_advseg),
+            # ('dlv2red',                        'r101v1c', uda_minent),
+            # ('dlv2red',                        'r101v1c', uda_dacs),
+            # ('dlv2red',                        'r101v1c', uda_daformer),
+            # ('hrda1-512-0.1_dlv2red',          'r101v1c', uda_hrda),
             ('daformer_sepaspp',               'mitb5',   uda_daformer),
             # ('hrda1-512-0.1_daformer_sepaspp', 'mibt5',   uda_hrda),  # already run in exp 80
         ]:
@@ -444,7 +473,7 @@ def generate_experiment_cfgs(id):
             else:
                 source, target, crop = 'gta', 'cityscapes', '512x512'
                 rcs_min_crop = 0.5
-                gpu_model = 'NVIDIAGeForceRTX2080Ti'
+                gpu_model = 'NVIDIA4090'
                 inference = 'whole'
                 # Use half the patch size when training with half resolution
                 mask_block_size = 32
