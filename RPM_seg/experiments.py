@@ -278,6 +278,14 @@ def generate_experiment_cfgs(id):
                 mask_ratio=mask_ratio,
                 mask_block_size=mask_block_size,
                 _delete_=True)
+        
+        # Using kevin's best config
+        if used_kevin_best:
+            cfg['uda']['data_root'] = data_root
+            cfg['uda']['rare_class_mix'] = rare_class_mix
+            cfg['uda']['rcs_class_temp'] = rcs_class_temp
+            cfg['uda']['mask_type'] = mask_type
+            cfg['uda']['mask_generator'] = mask_generator
             
         # Setup cdmix
         cfg['data']['train']['cdmix'] = cdmix
@@ -382,12 +390,13 @@ def generate_experiment_cfgs(id):
     topk = 2
     dist_mode = ['global', 'local']
     
-    #kevin's config
+    #kevin's best config
+    used_kevin_best = False
     data_root='/home/Ricky/0_project/CDMix/seg/data/gta'
     rare_class_mix = True
     rcs_class_temp=0.5
     mask_type = 'proto_prob'
-    mask_generator=dict(
+    mask_generator = dict(
         type='block',
         mask_ratio=0.7,
         mask_block_size=64,
@@ -396,7 +405,7 @@ def generate_experiment_cfgs(id):
         r_0=0.4,
         r_final=0.6,
         total_iteration=40000,
-    ),
+    )
     
     gpu_model = 'NVIDIATITANRTX'
     prefetch_factor = 1
@@ -558,6 +567,26 @@ def generate_experiment_cfgs(id):
         # Hack for supervised target training with MIC
         source, target, uda = 'cityscapes', 'cityscapes', 'dacs_srconly'
         mask_mode, mask_block_size, mask_ratio = 'separatesrc', 32, 0.7
+        for seed in seeds:
+            cfg = config_from_vars()
+            cfgs.append(cfg)
+    # -------------------------------------------------------------------------
+    # CDMix ablation study, global local ToDo: fix kevin's bugs
+    # -------------------------------------------------------------------------
+    elif id == 86:
+        used_kevin_best = True
+        mask_mode = 'separatetrgaug'
+        seeds = [1]
+        source, target = 'gta', 'cityscapes'
+        architecture, backbone = 'daformer_sepaspp', 'mitb5'
+        uda, rcs_T, plcrop = 'dacs_a999_fdthings', 0.01, True
+        mask_block_size = 64
+        
+        cdmix = True
+        topk = 2
+        dist_mode = ['global', 'local']
+        gpu_model = 'NVIDIARTX4090'
+        
         for seed in seeds:
             cfg = config_from_vars()
             cfgs.append(cfg)

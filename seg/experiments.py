@@ -303,8 +303,8 @@ def generate_experiment_cfgs(id):
         # Setup runner
         cfg['runner'] = dict(type='IterBasedRunner', max_iters=iters)
         cfg['checkpoint_config'] = dict(
-            by_epoch=False, interval=iters // 10, max_keep_ckpts=1)
-        cfg['evaluation'] = dict(interval=iters // 10, metric='mIoU')
+            by_epoch=False, interval=1000, max_keep_ckpts=1)
+        cfg['evaluation'] = dict(interval=1000, metric='mIoU')
 
         # Construct config name
         uda_mod = uda
@@ -542,6 +542,23 @@ def generate_experiment_cfgs(id):
         # Hack for supervised target training with MIC
         source, target, uda = 'cityscapes', 'cityscapes', 'dacs_srconly'
         mask_mode, mask_block_size, mask_ratio = 'separatesrc', 32, 0.7
+        for seed in seeds:
+            cfg = config_from_vars()
+            cfgs.append(cfg)
+    # -------------------------------------------------------------------------
+    # CDMix ablation study, global local
+    # -------------------------------------------------------------------------
+    elif id == 86:
+        seeds = [0, 1, 2]
+        source, target = 'gta', 'cityscapes'
+        architecture, backbone = 'daformer_sepaspp', 'mitb5'
+        uda, rcs_T, plcrop = 'dacs_a999_fdthings', 0.01, True
+        
+        cdmix = True
+        topk = 2
+        dist_mode = ['global', 'local']
+        gpu_model = 'NVIDIARTX4090'
+        
         for seed in seeds:
             cfg = config_from_vars()
             cfgs.append(cfg)

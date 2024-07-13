@@ -344,7 +344,7 @@ def strong_transform(param, data=None, target=None, weight=None, cls_dist=None):
     if cls_dist is not None:
         mixed_data, mixed_target, mixed_weight = cls_dist_mix(
             param=param,
-            data=data, target=target, weight=weight, cls_dist=cls_dist, param=param,
+            data=data, target=target, weight=weight, cls_dist=cls_dist,
         )
     else:
         mixed_data, mixed_target = one_mix(mask=param['mix'], data=data, target=target)
