@@ -197,7 +197,7 @@ def seg_sliding_windows(param, source_cls, cls_mask, gt_mask, local_dist, cls_di
             
             valid_windows = sliding_window(topk_gt_cls, gt_mask, all_windows, topk_cls_dist)
 
-    if valid_windows.shape[0] > 0:
+    if len(valid_windows) > 0:
         # vis_cls_dist = local_dist if local else topk_cls_dist
         # vis_cls = local_topk_cls if local else topk_gt_cls
         # print('source_cls: ', cls_name[source_cls])
