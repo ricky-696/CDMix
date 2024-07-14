@@ -67,7 +67,7 @@ data = dict(
 uda = dict(
     # cdmix hyp
     topk=2,
-    dist_mode=['local'],
+    dist_mode=['global'],
     # mask的方式
     mask_type = 'proto_prob',
     # source data使用的路徑

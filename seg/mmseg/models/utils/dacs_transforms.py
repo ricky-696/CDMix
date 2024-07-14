@@ -179,11 +179,11 @@ def seg_sliding_windows(param, source_cls, cls_mask, gt_mask, local_dist, cls_di
     all_windows = torch.stack((flat_x, flat_y, flat_x + window_size[0], flat_y + window_size[1])).t()
     gt_cls = torch.unique(gt_mask).cpu()
     
+    valid_windows = []
     # using local distance to filter out the windows
     if 'local' in param['dist_mode']:
         sorted_local_dist = sorted(local_dist.items(), key=lambda item: item[1][0])
         local_topk_cls = [cls for cls, _ in sorted_local_dist if cls in gt_cls][:param['topk']]
-        valid_windows = []
         
         if len(local_topk_cls):
             valid_windows = sliding_window(local_topk_cls, gt_mask, all_windows, local_dist)
