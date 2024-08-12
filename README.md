@@ -16,3 +16,15 @@ To obtain the visualization results in the thesis, please use the **seg** code.
 
 ## RPM_Seg
 To train DCMix **with kevin's code** for semantic segmentation UDA, please refer to [RPM_seg/README.md](RPM_seg/README.md).
+
+## Acknowledgements
+
+DCMix is based on the following open-source projects. We thank their
+authors for making the source code publicly available.
+
+* [MIC](https://github.com/lhoyer/MIC)
+* [HRDA](https://github.com/lhoyer/HRDA)
+* [DAFormer](https://github.com/lhoyer/DAFormer)
+* [MMSegmentation](https://github.com/open-mmlab/mmsegmentation)
+* [SegFormer](https://github.com/NVlabs/SegFormer)
+* [DACS](https://github.com/vikolss/DACS)
