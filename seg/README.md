@@ -1,4 +1,4 @@
-# MIC for Domain-Adaptive Semantic Segmentation
+# DCMix for Domain-Adaptive Semantic Segmentation
 
 ## Environment Setup
 
@@ -13,6 +13,9 @@ Please, download the MiT-B5 ImageNet weights provided by [SegFormer](https://git
 from their [OneDrive](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/xieenze_connect_hku_hk/EvOn3l1WyM5JpnMQFSEO5b8B7vrHw9kDaJGII-3N9KNhrg?e=cpydzZ) and put them in the folder `pretrained/`.
 
 ## Dataset Setup
+
+> [!TIP]
+> For MVL: The complete dataset (including all data preprocessing) is located at: `/mnt/Nami/dataset/MIC_dataset`
 
 **Cityscapes:** Please, download leftImg8bit_trainvaltest.zip and
 gt_trainvaltest.zip from [here](https://www.cityscapes-dataset.com/downloads/)
@@ -87,27 +90,27 @@ python tools/convert_datasets/cityscapes.py data/cityscapes --nproc 8
 python tools/convert_datasets/synthia.py data/synthia/ --nproc 8
 ```
 
+## Calaulating Class Distance
+Before training, we must use the following command to calculate the Class Distance from the labeled source domain.
+
+```shell
+python seg/tools/classes_distance/cnt_cls_dist.py --config configs/_base_/datasets/uda_gta_to_cityscapes_512x512.py --dataset source target
+```
+
+The dataset's config is saved in `configs/_base_/datasets`, you can convert only the source domain or target domain using the `--dataset` argument; the default is source and target.
+
+After executing this Python file, you will get the `cls_dists_diou.pkl` and `cls_prob_distribution_diou.pkl` in the dataset's folder.
+
 ## Training
-
-For convenience, we provide an [annotated config file](configs/mic/gtaHR2csHR_mic_hrda.py)
-of the final MIC(HRDA) on GTA→Cityscapes. A training job can be launched using:
+For the experiments in our paper, MIC provides a script to generate and train the configs automatically, DCMix's config id is `86`:
 
 ```shell
-python run_experiments.py --config configs/mic/gtaHR2csHR_mic_hrda.py
+python run_experiments.py --exp <86>
 ```
 
-The logs and checkpoints are stored in `work_dirs/`.
+More information about the available experiments and their assigned IDs, can be found in [experiments.py](experiments.py). The generated configs will be stored in `configs/generated/`.
 
-For the other experiments in our paper, we use a script to automatically
-generate and train the configs:
-
-```shell
-python run_experiments.py --exp <ID>
-```
-
-More information about the available experiments and their assigned IDs, can be
-found in [experiments.py](experiments.py). The generated configs will be stored
-in `configs/generated/`.
+Suppose you need to change the dataset path. The path must be modified in the `data_root` variables for both source and target in the config file from `RPM_seg/configs/_base_/datasets`.
 
 ## Evaluation
 
@@ -139,7 +142,7 @@ python -m tools.test path/to/config_file path/to/checkpoint_file --test-set --fo
 The predictions can be submitted to the public evaluation server of the
 respective dataset to obtain the test score.
 
-## Checkpoints
+## MIC's Checkpoints
 
 Below, we provide checkpoints of MIC(HRDA) for the different benchmarks.
 As the results in the paper are provided as the mean over three random
@@ -168,24 +171,25 @@ For more information about the framework structure and the config system,
 please refer to the [mmsegmentation documentation](https://mmsegmentation.readthedocs.io/en/latest/index.html)
 and the [mmcv documentation](https://mmcv.readthedocs.ihttps://arxiv.org/abs/2007.08702o/en/v1.3.7/index.html).
 
-The most relevant files for MIC are:
+The most relevant files for DCMix & MIC are:
 
+* [mmseg/models/uda/dacs.py](mmseg/models/uda/dacs.py):
+  Implementation of the DAFormer/HRDA/MIC self-training pipeline
+* [mmseg/datasets/uda_dataset.py](mmseg/datasets/uda_dataset.py): Implementation of the DCMix's class relation & dataloader
+* [mmseg/models/utils/dacs_transforms.py](mmseg/models/utils/dacs_transforms.py): Implementation of the DCMix's mixing process
 * [configs/mic/gtaHR2csHR_mic_hrda.py](configs/mic/gtaHR2csHR_mic_hrda.py):
   Annotated config file for MIC(HRDA) on GTA→Cityscapes.
-* [experiments.py](experiments.py):
-  Definition of the experiment configurations in the paper.
-* [mmseg/models/uda/masking_consistency_module.py](mmseg/models/uda/masking_consistency_module.py):
-  Implementation of MIC.
-* [mmseg/models/utils/masking_transforms.py](mmseg/models/utils/masking_transforms.py):
-  Implementation of the image patch masking.
-* [mmseg/models/uda/dacs.py](mmseg/models/uda/dacs.py):
-  Implementation of the DAFormer/HRDA self-training with integrated MaskingConsistencyModule
+* [experiments.py](experiments.py): Definition of the experiment configurations in the paper.
+* [mmseg/models/uda/masking_consistency_module.py](mmseg/models/uda/masking_consistency_module.py): Implementation of MIC.
+* [mmseg/models/utils/masking_transforms.py](mmseg/models/utils/masking_transforms.py): Implementation of the image patch masking.
+
 
 ## Acknowledgements
 
-MIC is based on the following open-source projects. We thank their
+DCMix is based on the following open-source projects. We thank their
 authors for making the source code publicly available.
 
+* [MIC](https://github.com/lhoyer/MIC)
 * [HRDA](https://github.com/lhoyer/HRDA)
 * [DAFormer](https://github.com/lhoyer/DAFormer)
 * [MMSegmentation](https://github.com/open-mmlab/mmsegmentation)

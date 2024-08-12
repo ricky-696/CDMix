@@ -159,6 +159,7 @@ def subplotimg(ax,
         title += f' {vmin:.3f}-{vmax:.3f}'
 
     ax.imshow(img, **kwargs)
+    ax.axis('off')
     if title is not None:
         ax.set_title(title)
 

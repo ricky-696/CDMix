@@ -162,9 +162,12 @@ def seg_sliding_windows(param, source_cls, cls_mask, gt_mask, local_dist, cls_di
     # using local distance to filter out the windows
     if 'local' in param['dist_mode']:
         sorted_local_dist = sorted(local_dist.items(), key=lambda item: item[1][0])
-        local_topk_cls = [cls for cls, _ in sorted_local_dist if cls in gt_cls][:topk]
+        local_topk_cls = [cls for cls, _ in sorted_local_dist][:param['topk']]
         
-        if len(local_topk_cls):
+        local_topk_set = set(local_topk_cls)
+        gt_set = set(gt_cls.tolist())
+
+        if len(local_topk_cls) and local_topk_set.issubset(gt_set):
             valid_windows = sliding_window(local_topk_cls, gt_mask, all_windows, local_dist)
     
     # using global distance from top k cls relation to filter out the windows if local_valid_windows is empty

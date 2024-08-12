@@ -30,7 +30,7 @@ def visualize(prob, cls_name, num_cls):
             col = b % columns
             axs[row, col].bar(x_values, prob[a, b], width=width, color=cm(x_color), edgecolor='black')
             axs[row, col].set_title(f'({cls_name[a]}, {cls_name[b]})', fontsize=14)
-            axs[row, col].set_ylim(0, max(prob[a, b]) * 1.5 + 1e-6)  # 设置 y 轴的范围
+            axs[row, col].set_ylim(0, 0.5)  # 设置 y 轴的范围
             axs[row, col].set_xlim(0, 2)  # 设置 x 轴的范围为 0 到 2
             axs[row, col].set_xticks(np.arange(0, 2.1, 0.5))  # 设置 x 轴刻度为 0 到 2，间隔为 0.5
 
@@ -58,7 +58,7 @@ def prob_dist(cls_a, distribution, num_cls):
 
 
 if __name__ == '__main__':
-    with open('data/cityscapes/cls_prob_distribution_diou.pkl', 'rb') as file:
+    with open('data/gta/cls_prob_distribution_diou.pkl', 'rb') as file:
         cls_dist = pickle.load(file)
 
     cls_name = [
